@@ -1,0 +1,20 @@
+# Web & Backend environments
+.venv/
+node_modules/
+
+# AI Service environments
+ai-service/env/
+ai-service/venv/
+backend/env/
+backend/venv/
+
+# Hidden configuration files
+.env
+*.log
+
+# Large files / Cache
+__pycache__/
+*.pyc
+dry_run.txt
+status.txt
+git_status.txt
