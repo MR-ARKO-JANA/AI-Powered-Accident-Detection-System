@@ -14,7 +14,7 @@ if __name__ == "__main__":
     dataset_dir = os.path.join(base_dir, "dataset")
     output_dir = os.path.join(base_dir, "fream_collection")
 
-    print(f"🚀 Starting dataset prep in: {base_dir}")
+    print(f" Starting dataset prep in: {base_dir}")
 
     # Walk through folders like a human searching for files
     for root, dirs, files in os.walk(dataset_dir):
@@ -31,7 +31,7 @@ if __name__ == "__main__":
 
             cap = cv2.VideoCapture(video_path)
             if not cap.isOpened():
-                print(f"❌ Error: Couldn't open {file}. Moving to next...")
+                print(f" Error: Couldn't open {file}. Moving to next...")
                 continue
 
             # --- THE "HUMAN" FIX FOR YOUR PROBLEM ---
@@ -63,6 +63,6 @@ if __name__ == "__main__":
                 frame_idx += 1
 
             cap.release()
-            print(f"  ∟ ✅ {label.upper()}: {file} -> {saved_count} frames saved.")
+            print(f"  ∟ {label.upper()}: {file} -> {saved_count} frames saved.")
 
     print("\n🎉 Done! Your dataset is ready for training.")
