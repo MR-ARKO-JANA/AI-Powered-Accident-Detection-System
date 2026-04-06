@@ -1,0 +1,18 @@
+{
+  "name": "acc-helper",
+  "version": "1.0.0",
+  "description": "ai help to deceted accident",
+  "license": "ISC",
+  "author": "Arko jana",
+  "type": "commonjs",
+  "main": "server.js",
+  "scripts": {
+    "test": "echo \"Error: no test specified\" && exit 1"
+  },
+  "dependencies": {
+    "dotenv": "^17.4.0",
+    "express": "^5.2.1",
+    "jsonwebtoken": "^9.0.3",
+    "mongoose": "^9.3.3"
+  }
+}
