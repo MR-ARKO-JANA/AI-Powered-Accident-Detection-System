@@ -4,23 +4,26 @@ import Navbar from "./components/Navbar";
 import Dashboard from "./pages/Dashboard";
 import Login from "./pages/Login";
 import Reports from "./pages/Reports";
+import { AuthProvider } from './context/AuthContext';
 
 function App() {
   return (
-    <Router>
-      {/* The Navbar stays OUTSIDE the Routes so it shows on every page */}
-      <Navbar />
+    <AuthProvider>
+      <Router>
+        {/* The Navbar stays OUTSIDE the Routes so it shows on every page */}
+        <Navbar />
 
-      <Routes>
-        {/* Default route redirects to Dashboard */}
-        <Route path="/" element={<Navigate to="/dashboard" />} />
+        <Routes>
+          {/* Default route redirects to Dashboard */}
+          <Route path="/" element={<Navigate to="/dashboard" />} />
 
-        {/* Your main pages */}
-        <Route path="/dashboard" element={<Dashboard />} />
-        <Route path="/login" element={<Login />} />
-        <Route path="/reports" element={<Reports />} />
-      </Routes>
-    </Router>
+          {/* Your main pages */}
+          <Route path="/dashboard" element={<Dashboard />} />
+          <Route path="/login" element={<Login />} />
+          <Route path="/reports" element={<Reports />} />
+        </Routes>
+      </Router>
+    </AuthProvider>
   );
 }
 
