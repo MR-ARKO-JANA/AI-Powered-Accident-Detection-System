@@ -5,6 +5,7 @@ import Dashboard from "./pages/Dashboard";
 import Login from "./pages/Login";
 import Reports from "./pages/Reports";
 import { AuthProvider } from './context/AuthContext';
+import AdminPanel from './pages/AdminPanel';
 
 function App() {
   return (
@@ -18,6 +19,7 @@ function App() {
           <Route path="/" element={<Navigate to="/dashboard" />} />
 
           {/* Your main pages */}
+          <Route path="/admin" element={<AdminPanel />} />
           <Route path="/dashboard" element={<Dashboard />} />
           <Route path="/login" element={<Login />} />
           <Route path="/reports" element={<Reports />} />

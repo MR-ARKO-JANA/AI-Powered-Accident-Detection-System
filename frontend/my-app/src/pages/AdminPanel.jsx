@@ -1,0 +1,419 @@
+import React, { useState } from 'react';
+
+const AdminPanel = () => {
+    // Dummy data representing the Emergency Contacts collection in MongoDB
+    const [contacts, setContacts] = useState([
+        { id: 1, name: 'Adil Mairaj', role: 'System Admin', phone: '+91-9876543210', status: 'Active' },
+        { id: 2, name: 'Aritra Saha', role: 'Lead Responder', phone: '+91-9876543211', status: 'Active' },
+        { id: 3, name: 'Triparna Sutradhar', role: 'Police Liaison', phone: '+91-9876543212', status: 'Active' },
+    ]);
+
+    const [hoveredRow, setHoveredRow] = useState(null);
+    const [hoveredBtn, setHoveredBtn] = useState(null);
+
+    const handleDelete = (id) => {
+        // In the future, this will make a DELETE request to your Node API
+        setContacts(contacts.filter(contact => contact.id !== id));
+    };
+
+    const roleColors = {
+        'System Admin': { bg: 'rgba(139, 92, 246, 0.12)', color: 'var(--accent-violet)', border: 'rgba(139, 92, 246, 0.25)' },
+        'Lead Responder': { bg: 'rgba(6, 182, 212, 0.12)', color: 'var(--accent-cyan)', border: 'rgba(6, 182, 212, 0.25)' },
+        'Police Liaison': { bg: 'rgba(16, 185, 129, 0.12)', color: 'var(--accent-emerald)', border: 'rgba(16, 185, 129, 0.25)' },
+    };
+
+    return (
+        <div style={styles.page}>
+            {/* Header */}
+            <div style={styles.header}>
+                <div>
+                    <h1 style={styles.title}>System Administration</h1>
+                    <p style={styles.subtitle}>Manage emergency personnel and system configuration</p>
+                </div>
+                <button
+                    style={{
+                        ...styles.addBtn,
+                        ...(hoveredBtn === 'add' ? styles.addBtnHover : {}),
+                    }}
+                    onMouseEnter={() => setHoveredBtn('add')}
+                    onMouseLeave={() => setHoveredBtn(null)}
+                >
+                    <span style={styles.addBtnIcon}>+</span>
+                    Add Personnel
+                </button>
+            </div>
+
+            {/* Table Panel */}
+            <div style={styles.tablePanel}>
+                <div style={styles.tablePanelHeader}>
+                    <div style={styles.panelTitleGroup}>
+                        <div style={styles.panelAccent}></div>
+                        <h2 style={styles.panelTitle}>Registered Emergency Personnel</h2>
+                    </div>
+                    <span style={styles.countBadge}>{contacts.length} members</span>
+                </div>
+
+                <div style={styles.tableWrapper}>
+                    <table style={styles.table}>
+                        <thead>
+                            <tr>
+                                <th style={styles.th}>Personnel</th>
+                                <th style={styles.th}>Role</th>
+                                <th style={styles.th}>Contact</th>
+                                <th style={styles.th}>Status</th>
+                                <th style={{ ...styles.th, textAlign: 'right' }}>Actions</th>
+                            </tr>
+                        </thead>
+                        <tbody>
+                            {contacts.map((contact, index) => {
+                                const roleStyle = roleColors[contact.role] || roleColors['System Admin'];
+                                return (
+                                    <tr
+                                        key={contact.id}
+                                        style={{
+                                            ...styles.tr,
+                                            backgroundColor: hoveredRow === contact.id
+                                                ? 'rgba(148, 163, 184, 0.05)'
+                                                : 'transparent',
+                                            animation: `fadeInUp 0.4s ease forwards`,
+                                            animationDelay: `${index * 0.08}s`,
+                                            opacity: 0,
+                                        }}
+                                        onMouseEnter={() => setHoveredRow(contact.id)}
+                                        onMouseLeave={() => setHoveredRow(null)}
+                                    >
+                                        {/* Name + Avatar */}
+                                        <td style={styles.td}>
+                                            <div style={styles.nameCell}>
+                                                <div style={{
+                                                    ...styles.avatar,
+                                                    background: `linear-gradient(135deg, ${roleStyle.color}, ${roleStyle.border})`,
+                                                }}>
+                                                    {contact.name.split(' ').map(n => n[0]).join('')}
+                                                </div>
+                                                <div>
+                                                    <div style={styles.nameText}>{contact.name}</div>
+                                                    <div style={styles.idText}>ID-{String(contact.id).padStart(4, '0')}</div>
+                                                </div>
+                                            </div>
+                                        </td>
+
+                                        {/* Role Badge */}
+                                        <td style={styles.td}>
+                                            <span style={{
+                                                ...styles.roleBadge,
+                                                background: roleStyle.bg,
+                                                color: roleStyle.color,
+                                                border: `1px solid ${roleStyle.border}`,
+                                            }}>
+                                                {contact.role}
+                                            </span>
+                                        </td>
+
+                                        {/* Phone */}
+                                        <td style={styles.td}>
+                                            <span style={styles.phoneText}>{contact.phone}</span>
+                                        </td>
+
+                                        {/* Status */}
+                                        <td style={styles.td}>
+                                            <div style={styles.statusGroup}>
+                                                <span style={styles.statusDot}></span>
+                                                <span style={styles.statusText}>{contact.status}</span>
+                                            </div>
+                                        </td>
+
+                                        {/* Actions */}
+                                        <td style={{ ...styles.td, textAlign: 'right' }}>
+                                            <button
+                                                onClick={() => handleDelete(contact.id)}
+                                                style={{
+                                                    ...styles.deleteBtn,
+                                                    ...(hoveredBtn === `del-${contact.id}` ? styles.deleteBtnHover : {}),
+                                                }}
+                                                onMouseEnter={() => setHoveredBtn(`del-${contact.id}`)}
+                                                onMouseLeave={() => setHoveredBtn(null)}
+                                            >
+                                                ✕ Remove
+                                            </button>
+                                        </td>
+                                    </tr>
+                                );
+                            })}
+                        </tbody>
+                    </table>
+                </div>
+
+                {/* Empty state */}
+                {contacts.length === 0 && (
+                    <div style={styles.emptyState}>
+                        <span style={styles.emptyIcon}>◎</span>
+                        <p style={styles.emptyText}>No personnel registered</p>
+                        <p style={styles.emptySub}>Add emergency contacts to get started</p>
+                    </div>
+                )}
+            </div>
+        </div>
+    );
+};
+
+const styles = {
+    page: {
+        padding: '28px 36px',
+        maxWidth: '1200px',
+        margin: '0 auto',
+        animation: 'fadeIn 0.4s ease',
+    },
+
+    header: {
+        display: 'flex',
+        justifyContent: 'space-between',
+        alignItems: 'flex-start',
+        marginBottom: '28px',
+        animation: 'fadeInUp 0.5s ease',
+    },
+
+    title: {
+        fontSize: '28px',
+        fontWeight: 800,
+        color: 'var(--text-primary)',
+        letterSpacing: '-0.5px',
+        margin: 0,
+        lineHeight: 1.2,
+    },
+
+    subtitle: {
+        fontSize: '14px',
+        color: 'var(--text-muted)',
+        fontWeight: 400,
+        marginTop: '6px',
+    },
+
+    addBtn: {
+        display: 'flex',
+        alignItems: 'center',
+        gap: '8px',
+        padding: '12px 22px',
+        border: '1px solid rgba(6, 182, 212, 0.3)',
+        borderRadius: 'var(--radius-md)',
+        background: 'rgba(6, 182, 212, 0.08)',
+        color: 'var(--accent-cyan)',
+        fontSize: '14px',
+        fontWeight: 600,
+        cursor: 'pointer',
+        fontFamily: "'Inter', sans-serif",
+        transition: 'all 0.3s ease',
+        letterSpacing: '0.3px',
+    },
+
+    addBtnHover: {
+        background: 'rgba(6, 182, 212, 0.15)',
+        borderColor: 'var(--accent-cyan)',
+        boxShadow: '0 0 20px rgba(6, 182, 212, 0.2)',
+        transform: 'translateY(-1px)',
+    },
+
+    addBtnIcon: {
+        fontSize: '18px',
+        fontWeight: 300,
+    },
+
+    tablePanel: {
+        background: 'var(--bg-glass)',
+        backdropFilter: 'blur(12px)',
+        WebkitBackdropFilter: 'blur(12px)',
+        border: '1px solid var(--border-glass)',
+        borderRadius: 'var(--radius-lg)',
+        padding: '24px',
+        animation: 'fadeInUp 0.6s ease',
+    },
+
+    tablePanelHeader: {
+        display: 'flex',
+        justifyContent: 'space-between',
+        alignItems: 'center',
+        marginBottom: '20px',
+    },
+
+    panelTitleGroup: {
+        display: 'flex',
+        alignItems: 'center',
+        gap: '10px',
+    },
+
+    panelAccent: {
+        width: '3px',
+        height: '18px',
+        borderRadius: 'var(--radius-full)',
+        background: 'var(--accent-violet)',
+        boxShadow: '0 0 8px var(--accent-violet-glow)',
+    },
+
+    panelTitle: {
+        fontSize: '16px',
+        fontWeight: 700,
+        color: 'var(--text-primary)',
+        margin: 0,
+    },
+
+    countBadge: {
+        fontSize: '12px',
+        fontWeight: 600,
+        padding: '5px 14px',
+        borderRadius: 'var(--radius-full)',
+        background: 'rgba(139, 92, 246, 0.1)',
+        color: 'var(--accent-violet)',
+        border: '1px solid rgba(139, 92, 246, 0.2)',
+    },
+
+    tableWrapper: {
+        overflowX: 'auto',
+    },
+
+    table: {
+        width: '100%',
+        borderCollapse: 'separate',
+        borderSpacing: '0 2px',
+    },
+
+    th: {
+        padding: '12px 18px',
+        color: 'var(--text-muted)',
+        fontWeight: 600,
+        fontSize: '12px',
+        letterSpacing: '0.8px',
+        textTransform: 'uppercase',
+        textAlign: 'left',
+        borderBottom: '1px solid var(--border-glass)',
+    },
+
+    tr: {
+        transition: 'background-color 0.2s ease',
+        borderBottom: '1px solid var(--border-subtle)',
+    },
+
+    td: {
+        padding: '16px 18px',
+        borderBottom: '1px solid var(--border-subtle)',
+        verticalAlign: 'middle',
+    },
+
+    nameCell: {
+        display: 'flex',
+        alignItems: 'center',
+        gap: '14px',
+    },
+
+    avatar: {
+        width: '40px',
+        height: '40px',
+        borderRadius: 'var(--radius-sm)',
+        display: 'flex',
+        alignItems: 'center',
+        justifyContent: 'center',
+        fontSize: '13px',
+        fontWeight: 700,
+        color: 'white',
+        flexShrink: 0,
+    },
+
+    nameText: {
+        fontSize: '14px',
+        fontWeight: 600,
+        color: 'var(--text-primary)',
+    },
+
+    idText: {
+        fontSize: '11px',
+        color: 'var(--text-muted)',
+        fontWeight: 500,
+        marginTop: '2px',
+    },
+
+    roleBadge: {
+        fontSize: '12px',
+        fontWeight: 600,
+        padding: '5px 12px',
+        borderRadius: 'var(--radius-full)',
+        display: 'inline-block',
+        letterSpacing: '0.3px',
+    },
+
+    phoneText: {
+        fontSize: '14px',
+        color: 'var(--text-secondary)',
+        fontWeight: 500,
+        fontFamily: "'Inter', monospace",
+        letterSpacing: '0.5px',
+    },
+
+    statusGroup: {
+        display: 'flex',
+        alignItems: 'center',
+        gap: '8px',
+    },
+
+    statusDot: {
+        width: '7px',
+        height: '7px',
+        borderRadius: '50%',
+        background: 'var(--accent-emerald)',
+        boxShadow: '0 0 6px rgba(16, 185, 129, 0.5)',
+        display: 'inline-block',
+    },
+
+    statusText: {
+        fontSize: '13px',
+        color: 'var(--accent-emerald)',
+        fontWeight: 600,
+    },
+
+    deleteBtn: {
+        padding: '7px 16px',
+        border: '1px solid rgba(244, 63, 94, 0.2)',
+        borderRadius: 'var(--radius-sm)',
+        background: 'rgba(244, 63, 94, 0.06)',
+        color: 'var(--accent-rose)',
+        fontSize: '12px',
+        fontWeight: 600,
+        cursor: 'pointer',
+        fontFamily: "'Inter', sans-serif",
+        transition: 'all 0.3s ease',
+        letterSpacing: '0.3px',
+    },
+
+    deleteBtnHover: {
+        background: 'rgba(244, 63, 94, 0.15)',
+        borderColor: 'var(--accent-rose)',
+        boxShadow: '0 0 12px rgba(244, 63, 94, 0.15)',
+        transform: 'translateY(-1px)',
+    },
+
+    emptyState: {
+        textAlign: 'center',
+        padding: '60px 20px',
+    },
+
+    emptyIcon: {
+        fontSize: '48px',
+        color: 'var(--text-muted)',
+        opacity: 0.3,
+        display: 'block',
+        marginBottom: '16px',
+    },
+
+    emptyText: {
+        fontSize: '16px',
+        fontWeight: 600,
+        color: 'var(--text-secondary)',
+        margin: '0 0 6px 0',
+    },
+
+    emptySub: {
+        fontSize: '13px',
+        color: 'var(--text-muted)',
+        margin: 0,
+    },
+};
+
+export default AdminPanel;
