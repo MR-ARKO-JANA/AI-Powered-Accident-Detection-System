@@ -6,8 +6,11 @@ from flask import Flask, request, jsonify  # Added for the AI API [cite: 46, 49]
 from flask_cors import CORS # Recommended for handling cross-origin requests from React [cite: 66]
 
 app = Flask(__name__)
+CORS(app)  # Enable CORS so React frontend can call this API
 
-model = tf.keras.models.load_model('model/accident_model.h5')
+# Build absolute path to model so the server can run from any directory
+model_path = os.path.join(os.path.dirname(os.path.abspath(__file__)), 'model', 'accident_model.h5')
+model = tf.keras.models.load_model(model_path)
 
 @app.route('/detect', methods=['POST'])
 def detect():

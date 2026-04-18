@@ -3,17 +3,22 @@ const cors = require("cors");
 const dotenv = require("dotenv");
 const connectDB = require("./config/db");
 
-dotenv.config(); // load env variable from .env file
 
-connectDB(); // connect to database
+dotenv.config(); // load env variable from  .env file  
 
-const app = express() ; // initialize express app
+connectDB(); // connect to database 
+
+const app = express();  // initialize express app
 
 // middleware
-app.use(cors()); // allow cross origin requests
-app.use(express.json()); // allow json data in requests
+app.use(cors()); // allow cross origin requests 
+app.use(express.json()); // allow json data in requests 
 
-app.get("/api/status", (req,res) =>{
+// API Routes
+app.use('/api/auth', require('./routes/authRoutes'));
+
+app.get("/api/status", (req, res) => {
+
     res.json({
         success: true,
         message: "Server is running",
