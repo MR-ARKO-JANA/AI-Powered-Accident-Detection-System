@@ -7,6 +7,7 @@ const CameraFeed = () => {
     const [isConnected, setIsConnected] = useState(false);
     const [currentTime, setCurrentTime] = useState('');
     const [isDetecting, setIsDetecting] = useState(false);
+    const [detectionStatus, setDetectionStatus] = useState('safe'); // 'safe' or 'accident'
 
     useEffect(() => {
         // Request access to the user's webcam
@@ -74,9 +75,10 @@ const CameraFeed = () => {
                 const aiResponse = await axios.post('http://localhost:5001/detect', formData);
                 
                 if (aiResponse.data.accident) {
+                    setDetectionStatus('accident');
                     console.warn("⚠️ ACCIDENT DETECTED! Confidence:", aiResponse.data.confidence);
-                    // The AI Service now reports directly to the backend.
-                    // We just log it here for UI awareness.
+                } else {
+                    setDetectionStatus('safe');
                 }
             } catch (error) {
                 console.error("Detection error:", error);
@@ -95,7 +97,15 @@ const CameraFeed = () => {
             {/* Top Bar — REC + Timestamp */}
             <div style={styles.topBar}>
                 <div style={styles.recGroup}>
-                    <span style={styles.recDot}></span>
+                    <div style={styles.recDot}></div>
+                    <div style={{
+                        ...styles.liveStatusHUD,
+                        color: detectionStatus === 'safe' ? '#10b981' : '#f43f5e',
+                        borderColor: detectionStatus === 'safe' ? 'rgba(16, 185, 129, 0.3)' : 'rgba(244, 63, 94, 0.3)',
+                        background: detectionStatus === 'safe' ? 'rgba(16, 185, 129, 0.1)' : 'rgba(244, 63, 94, 0.1)',
+                    }}>
+                        {detectionStatus === 'safe' ? '● NO ACCIDENT' : '● ACCIDENT DETECTED'}
+                    </div>
                     <span style={styles.recText}>REC</span>
                 </div>
                 <div style={styles.timestamp}>
@@ -232,6 +242,18 @@ const styles = {
         letterSpacing: '2px',
         fontSize: '12px',
         fontFamily: "'Inter', monospace",
+    },
+
+    liveStatusHUD: {
+        fontSize: '10px',
+        fontWeight: 800,
+        letterSpacing: '1px',
+        padding: '3px 8px',
+        borderRadius: '4px',
+        border: '1px solid',
+        marginLeft: '10px',
+        marginRight: '10px',
+        transition: 'all 0.3s ease',
     },
 
     timestamp: {
