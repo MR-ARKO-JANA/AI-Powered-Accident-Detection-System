@@ -1,16 +1,33 @@
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
 import CameraFeed from '../components/CameraFeed';
 import AccidentCard from '../components/AccidentCard';
+import API from '../services/api';
 
 const Dashboard = () => {
     const [hoveredStat, setHoveredStat] = useState(null);
+    const [alerts, setAlerts] = useState([]);
+    const [isLoading, setIsLoading] = useState(true);
 
-    // Mock data representing what the Node.js backend will send
-    const mockAlerts = [
-        { id: 1, location: "Main Street Intersection", severity: "High", time: "10:45 AM" },
-        { id: 2, location: "Highway 42, Mile 8", severity: "Low", time: "09:12 AM" },
-        { id: 3, location: "Park Avenue Bridge", severity: "High", time: "08:30 AM" },
-    ];
+    // Fetch alerts from the backend
+    const fetchAlerts = async () => {
+        try {
+            const response = await API.get('/accidents');
+            if (response.data.success) {
+                setAlerts(response.data.data);
+            }
+        } catch (error) {
+            console.error("Error fetching alerts:", error);
+        } finally {
+            setIsLoading(false);
+        }
+    };
+
+    useEffect(() => {
+        fetchAlerts();
+        // Polling every 5 seconds for live updates
+        const interval = setInterval(fetchAlerts, 5000);
+        return () => clearInterval(interval);
+    }, []);
 
     // Stats data
     const stats = [
@@ -134,17 +151,23 @@ const Dashboard = () => {
                             color: 'var(--accent-rose)',
                             border: '1px solid rgba(244, 63, 94, 0.2)',
                         }}>
-                            {mockAlerts.length} alerts
+                            {alerts.length} alerts
                         </span>
                     </div>
                     <div style={styles.alertsList}>
-                        {mockAlerts.map((alert, index) => (
-                            <AccidentCard
-                                key={alert.id}
-                                data={alert}
-                                index={index}
-                            />
-                        ))}
+                        {isLoading ? (
+                            <p style={styles.emptyText}>Loading alerts...</p>
+                        ) : alerts.length > 0 ? (
+                            alerts.map((alert, index) => (
+                                <AccidentCard
+                                    key={alert._id || alert.id}
+                                    data={alert}
+                                    index={index}
+                                />
+                            ))
+                        ) : (
+                            <p style={styles.emptyText}>No accidents detected.</p>
+                        )}
                     </div>
                 </div>
 

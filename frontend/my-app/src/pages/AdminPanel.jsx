@@ -1,19 +1,56 @@
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
+import API from '../services/api';
 
 const AdminPanel = () => {
-    // Dummy data representing the Emergency Contacts collection in MongoDB
-    const [contacts, setContacts] = useState([
-        { id: 1, name: 'Adil Mairaj', role: 'System Admin', phone: '+91-9876543210', status: 'Active' },
-        { id: 2, name: 'Aritra Saha', role: 'Lead Responder', phone: '+91-9876543211', status: 'Active' },
-        { id: 3, name: 'Triparna Sutradhar', role: 'Police Liaison', phone: '+91-9876543212', status: 'Active' },
-    ]);
+    const [contacts, setContacts] = useState([]);
+    const [isLoading, setIsLoading] = useState(true);
+
+    const fetchContacts = async () => {
+        try {
+            const response = await API.get('/contacts');
+            if (response.data.success) {
+                setContacts(response.data.data);
+            }
+        } catch (error) {
+            console.error("Error fetching contacts:", error);
+        } finally {
+            setIsLoading(false);
+        }
+    };
+
+    useEffect(() => {
+        fetchContacts();
+    }, []);
 
     const [hoveredRow, setHoveredRow] = useState(null);
     const [hoveredBtn, setHoveredBtn] = useState(null);
 
-    const handleDelete = (id) => {
-        // In the future, this will make a DELETE request to your Node API
-        setContacts(contacts.filter(contact => contact.id !== id));
+    const handleDelete = async (id) => {
+        if (window.confirm("Are you sure you want to remove this personnel?")) {
+            try {
+                await API.delete(`/contacts/${id}`);
+                setContacts(contacts.filter(contact => (contact._id || contact.id) !== id));
+            } catch (error) {
+                console.error("Error deleting contact:", error);
+            }
+        }
+    };
+
+    const handleAdd = async () => {
+        const name = prompt("Enter Name:");
+        const role = prompt("Enter Role (System Admin, Lead Responder, Police Liaison):");
+        const phone = prompt("Enter Phone:");
+
+        if (name && role && phone) {
+            try {
+                const response = await API.post('/contacts', { name, role, phone });
+                if (response.data.success) {
+                    setContacts([...contacts, response.data.data]);
+                }
+            } catch (error) {
+                console.error("Error adding contact:", error);
+            }
+        }
     };
 
     const roleColors = {
@@ -31,6 +68,7 @@ const AdminPanel = () => {
                     <p style={styles.subtitle}>Manage emergency personnel and system configuration</p>
                 </div>
                 <button
+                    onClick={handleAdd}
                     style={{
                         ...styles.addBtn,
                         ...(hoveredBtn === 'add' ? styles.addBtnHover : {}),
@@ -65,21 +103,24 @@ const AdminPanel = () => {
                             </tr>
                         </thead>
                         <tbody>
-                            {contacts.map((contact, index) => {
+                            {isLoading ? (
+                                <tr><td colSpan="5" style={styles.td}>Loading...</td></tr>
+                            ) : contacts.map((contact, index) => {
                                 const roleStyle = roleColors[contact.role] || roleColors['System Admin'];
+                                const contactId = contact._id || contact.id;
                                 return (
                                     <tr
-                                        key={contact.id}
+                                        key={contactId}
                                         style={{
                                             ...styles.tr,
-                                            backgroundColor: hoveredRow === contact.id
+                                            backgroundColor: hoveredRow === contactId
                                                 ? 'rgba(148, 163, 184, 0.05)'
                                                 : 'transparent',
                                             animation: `fadeInUp 0.4s ease forwards`,
                                             animationDelay: `${index * 0.08}s`,
                                             opacity: 0,
                                         }}
-                                        onMouseEnter={() => setHoveredRow(contact.id)}
+                                        onMouseEnter={() => setHoveredRow(contactId)}
                                         onMouseLeave={() => setHoveredRow(null)}
                                     >
                                         {/* Name + Avatar */}
@@ -93,7 +134,7 @@ const AdminPanel = () => {
                                                 </div>
                                                 <div>
                                                     <div style={styles.nameText}>{contact.name}</div>
-                                                    <div style={styles.idText}>ID-{String(contact.id).padStart(4, '0')}</div>
+                                                    <div style={styles.idText}>ID-{String(contactId).slice(-4).toUpperCase()}</div>
                                                 </div>
                                             </div>
                                         </td>
@@ -119,19 +160,19 @@ const AdminPanel = () => {
                                         <td style={styles.td}>
                                             <div style={styles.statusGroup}>
                                                 <span style={styles.statusDot}></span>
-                                                <span style={styles.statusText}>{contact.status}</span>
+                                                <span style={styles.statusText}>{contact.status || 'Active'}</span>
                                             </div>
                                         </td>
 
                                         {/* Actions */}
                                         <td style={{ ...styles.td, textAlign: 'right' }}>
                                             <button
-                                                onClick={() => handleDelete(contact.id)}
+                                                onClick={() => handleDelete(contactId)}
                                                 style={{
                                                     ...styles.deleteBtn,
-                                                    ...(hoveredBtn === `del-${contact.id}` ? styles.deleteBtnHover : {}),
+                                                    ...(hoveredBtn === `del-${contactId}` ? styles.deleteBtnHover : {}),
                                                 }}
-                                                onMouseEnter={() => setHoveredBtn(`del-${contact.id}`)}
+                                                onMouseEnter={() => setHoveredBtn(`del-${contactId}`)}
                                                 onMouseLeave={() => setHoveredBtn(null)}
                                             >
                                                 ✕ Remove

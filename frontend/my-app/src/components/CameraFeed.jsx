@@ -1,9 +1,13 @@
 import React, { useRef, useEffect, useState } from 'react';
+import API from '../services/api';
+import axios from 'axios';
 
 const CameraFeed = () => {
     const videoRef = useRef(null);
+    const canvasRef = useRef(null);
     const [isConnected, setIsConnected] = useState(false);
     const [currentTime, setCurrentTime] = useState('');
+    const [isDetecting, setIsDetecting] = useState(false);
 
     useEffect(() => {
         // Request access to the user's webcam
@@ -33,6 +37,61 @@ const CameraFeed = () => {
         }, 1000);
         return () => clearInterval(timer);
     }, []);
+
+    // Detection Loop
+    useEffect(() => {
+        if (!isConnected) return;
+
+        const interval = setInterval(async () => {
+            if (isDetecting) return;
+            captureAndDetect();
+        }, 3000); // Check every 3 seconds to avoid overloading
+
+        return () => clearInterval(interval);
+    }, [isConnected, isDetecting]);
+
+    const captureAndDetect = async () => {
+        if (!videoRef.current || !canvasRef.current) return;
+
+        const video = videoRef.current;
+        const canvas = canvasRef.current;
+        const context = canvas.getContext('2d');
+
+        // Draw current video frame to hidden canvas
+        canvas.width = video.videoWidth;
+        canvas.height = video.videoHeight;
+        context.drawImage(video, 0, 0, canvas.width, canvas.height);
+
+        // Convert canvas to blob
+        canvas.toBlob(async (blob) => {
+            if (!blob) return;
+
+            const formData = new FormData();
+            formData.append('frame', blob, 'frame.jpg');
+
+            try {
+                setIsDetecting(true);
+                // Call AI Flask Service
+                const aiResponse = await axios.post('http://localhost:5001/detect', formData);
+                
+                if (aiResponse.data.accident) {
+                    console.warn("⚠️ ACCIDENT DETECTED! Confidence:", aiResponse.data.confidence);
+                    
+                    // Report to Node.js Backend
+                    await API.post('/accidents', {
+                        severity: aiResponse.data.confidence > 0.8 ? "High" : "Medium",
+                        location: "Main Intersection (Live Feed)",
+                        time: new Date().toLocaleTimeString(),
+                        coordinates: { lat: 22.5726, lng: 88.3639 } // Mock coordinates for now
+                    });
+                }
+            } catch (error) {
+                console.error("Detection error:", error);
+            } finally {
+                setIsDetecting(false);
+            }
+        }, 'image/jpeg');
+    };
 
     return (
         <div style={styles.container}>
@@ -74,6 +133,9 @@ const CameraFeed = () => {
             <div style={{ ...styles.corner, top: '12px', right: '12px', borderTop: '2px solid rgba(6, 182, 212, 0.5)', borderRight: '2px solid rgba(6, 182, 212, 0.5)' }}></div>
             <div style={{ ...styles.corner, bottom: '12px', left: '12px', borderBottom: '2px solid rgba(6, 182, 212, 0.5)', borderLeft: '2px solid rgba(6, 182, 212, 0.5)' }}></div>
             <div style={{ ...styles.corner, bottom: '12px', right: '12px', borderBottom: '2px solid rgba(6, 182, 212, 0.5)', borderRight: '2px solid rgba(6, 182, 212, 0.5)' }}></div>
+
+            {/* Hidden Canvas for AI processing */}
+            <canvas ref={canvasRef} style={{ display: 'none' }} />
 
             {/* The Actual Video Feed */}
             <video

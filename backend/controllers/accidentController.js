@@ -20,6 +20,15 @@ const createAccident = async (req, res) => {
     } catch (error) {
         res.status(500).json({ success: false, message: error.message });
     }
+// @desc    Get all accident records
+// @route   GET /api/accidents
+const getAccidents = async (req, res) => {
+    try {
+        const accidents = await Accident.find().sort({ createdAt: -1 });
+        res.json({ success: true, data: accidents });
+    } catch (error) {
+        res.status(500).json({ success: false, message: error.message });
+    }
 };
 
-module.exports = { createAccident };
+module.exports = { createAccident, getAccidents };
