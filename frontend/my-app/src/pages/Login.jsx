@@ -16,8 +16,10 @@ const Login = () => {
         e.preventDefault();
 
         if (email && password) {
+            setIsLoading(true);
             // Call the real login function from AuthContext
             const result = await login(email, password);
+            setIsLoading(false);
 
             if (result.success) {
                 navigate('/dashboard'); // Success! Go to dashboard.

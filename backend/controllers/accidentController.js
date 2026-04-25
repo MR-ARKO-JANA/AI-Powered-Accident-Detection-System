@@ -23,7 +23,7 @@ const createAccident = async (req, res) => {
         try {
             const contacts = await Contact.find();
             const contactEmails = contacts.map(c => c.email).filter(e => e); // Assume email field exists in model
-            
+
             if (contactEmails.length > 0) {
                 const subject = `⚠️ EMERGENCY: ${severity} Severity Accident Detected`;
                 const mapLink = `https://www.google.com/maps?q=${coordinates.lat},${coordinates.lng}`;
@@ -38,7 +38,7 @@ const createAccident = async (req, res) => {
                     </ul>
                     <p>Please dispatch emergency services immediately.</p>
                 `;
-                
+
                 // Send to all contacts (for demo, we just send to the first one or a test email)
                 await sendEmail(contactEmails.join(","), subject, "", html);
             }
@@ -47,7 +47,7 @@ const createAccident = async (req, res) => {
             if (twilioClient && severity === "High") {
                 const mapLink = `https://www.google.com/maps?q=${coordinates.lat},${coordinates.lng}`;
                 const smsBody = `⚠️ APADS EMERGENCY: ${severity} accident at ${location}. Time: ${time}. Map: ${mapLink}`;
-                
+
                 const contactPhones = contacts.map(c => c.phone).filter(p => p);
                 for (const phone of contactPhones) {
                     await twilioClient.messages.create({
