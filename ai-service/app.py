@@ -14,15 +14,25 @@ model = tf.keras.models.load_model(model_path)
 
 import requests
 import datetime
+import time
 
-# Configuration for Node.js Backend
+# Cooldown to prevent spamming alerts (e.g., 30 seconds)
+last_report_time = 0
+COOLDOWN_SECONDS = 30
 BACKEND_URL = "http://localhost:5000/api/accidents"
 
 def report_accident_to_backend(confidence):
     """Sends accident details to the Node.js backend API"""
+    global last_report_time
+    current_time = time.time()
+    
+    if current_time - last_report_time < COOLDOWN_SECONDS:
+        print(f"⏳ Cooldown active. Skipping report. (Next in {int(COOLDOWN_SECONDS - (current_time - last_report_time))}s)")
+        return
+
     try:
         payload = {
-            "severity": "High" if confidence > 0.8 else "Medium",
+            "severity": "High" if confidence > 0.8 else "Low",
             "location": "Main Intersection (AI Detection)",
             "time": datetime.datetime.now().strftime("%I:%M %p"),
             "coordinates": {
@@ -32,6 +42,7 @@ def report_accident_to_backend(confidence):
         }
         response = requests.post(BACKEND_URL, json=payload)
         if response.status_code == 201:
+            last_report_time = current_time
             print(f"✅ Accident reported to backend! Confidence: {confidence}")
         else:
             print(f"❌ Failed to report: {response.status_code}")
@@ -70,6 +81,9 @@ def detect():
     
     # prediction is like [[0.87]], so we grab the number
     confidence = float(prediction[0][0])
+    
+    # DEBUG: Print confidence for every frame to help the user calibrate
+    print(f"DEBUG: Frame processed. Confidence: {round(confidence, 4)}")
     
     # If confidence > 0.5, it's an accident
     is_accident = confidence > 0.5

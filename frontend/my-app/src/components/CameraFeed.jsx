@@ -138,11 +138,42 @@ const CameraFeed = () => {
                 muted
                 style={styles.video}
             />
+
+            {/* DEBUG: Simulation Button */}
+            <button 
+                onClick={() => {
+                    const fakeData = {
+                        severity: "High",
+                        location: "Simulated Test Site",
+                        time: new Date().toLocaleTimeString(),
+                        coordinates: { lat: 22.5726, lng: 88.3639 }
+                    };
+                    axios.post('http://localhost:5000/api/accidents', fakeData)
+                        .then(() => alert("✅ Test alert sent! Check your Dashboard and Email."))
+                        .catch(err => alert("❌ Test failed: " + err.message));
+                }}
+                style={styles.debugBtn}
+            >
+                Test Alert
+            </button>
         </div>
     );
 };
 
 const styles = {
+    debugBtn: {
+        position: 'absolute',
+        bottom: '20px',
+        right: '20px',
+        padding: '8px 16px',
+        background: 'rgba(255, 255, 255, 0.1)',
+        border: '1px solid rgba(255, 255, 255, 0.2)',
+        color: 'white',
+        borderRadius: '6px',
+        cursor: 'pointer',
+        fontSize: '12px',
+        zIndex: 100,
+    },
     container: {
         position: 'relative',
         width: '100%',
