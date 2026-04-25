@@ -1,18 +1,41 @@
-import React, { createContext, useState } from 'react';
+import React, { createContext, useState, useEffect } from 'react';
+import API from '../services/api';
 
 export const AuthContext = createContext();
 
 export const AuthProvider = ({ children }) => {
-    // State to hold the user's login status
     const [user, setUser] = useState(null);
 
-    // Function to log the user in
-    const login = (token) => {
-        setUser({ isAuthenticated: true, token });
+    // Check if user is already logged in when the app loads
+    useEffect(() => {
+        const token = localStorage.getItem('token');
+        const userData = localStorage.getItem('user');
+        if (token && userData) {
+            setUser({ isAuthenticated: true, token, details: JSON.parse(userData) });
+        }
+    }, []);
+
+    // REAL Login Function
+    const login = async (email, password) => {
+        try {
+            const response = await API.post('/auth/login', { email, password });
+            const { token, name, _id } = response.data;
+
+            // Save to local storage so they stay logged in after refreshing
+            localStorage.setItem('token', token);
+            localStorage.setItem('user', JSON.stringify({ name, _id, email }));
+
+            setUser({ isAuthenticated: true, token, details: { name, _id, email } });
+            return { success: true };
+        } catch (error) {
+            console.error("Login failed:", error.response?.data?.message || error.message);
+            return { success: false, message: error.response?.data?.message || "Login failed" };
+        }
     };
 
-    //Function to log the use out  
     const logout = () => {
+        localStorage.removeItem('token');
+        localStorage.removeItem('user');
         setUser(null);
     };
 
@@ -20,5 +43,5 @@ export const AuthProvider = ({ children }) => {
         <AuthContext.Provider value={{ user, login, logout }}>
             {children}
         </AuthContext.Provider>
-    )
-}
+    );
+};

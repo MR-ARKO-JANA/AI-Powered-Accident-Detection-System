@@ -12,16 +12,18 @@ const Login = () => {
     const navigate = useNavigate();
     const { login } = useContext(AuthContext);
 
-    const handleLogin = (e) => {
+    const handleLogin = async (e) => {
         e.preventDefault();
 
         if (email && password) {
-            setIsLoading(true);
-            // Simulate API call delay
-            setTimeout(() => {
-                login('dummy_jwt_token_123');
-                navigate('/dashboard');
-            }, 1200);
+            // Call the real login function from AuthContext
+            const result = await login(email, password);
+
+            if (result.success) {
+                navigate('/dashboard'); // Success! Go to dashboard.
+            } else {
+                alert(result.message); // Show error from the backend (e.g., "Invalid password")
+            }
         } else {
             alert("Please enter both email and password.");
         }
