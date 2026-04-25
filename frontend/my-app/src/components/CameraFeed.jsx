@@ -8,6 +8,7 @@ const CameraFeed = () => {
     const [currentTime, setCurrentTime] = useState('');
     const [isDetecting, setIsDetecting] = useState(false);
     const [detectionStatus, setDetectionStatus] = useState('safe'); // 'safe' or 'accident'
+    const [confidence, setConfidence] = useState(0);
 
     useEffect(() => {
         // Request access to the user's webcam
@@ -73,6 +74,7 @@ const CameraFeed = () => {
                 setIsDetecting(true);
                 // Call AI Flask Service
                 const aiResponse = await axios.post('http://localhost:5001/detect', formData);
+                setConfidence(aiResponse.data.confidence);
                 
                 if (aiResponse.data.accident) {
                     setDetectionStatus('accident');
@@ -105,6 +107,7 @@ const CameraFeed = () => {
                         background: detectionStatus === 'safe' ? 'rgba(16, 185, 129, 0.1)' : 'rgba(244, 63, 94, 0.1)',
                     }}>
                         {detectionStatus === 'safe' ? '● NO ACCIDENT' : '● ACCIDENT DETECTED'}
+                        <span style={styles.confidenceText}>({(confidence * 100).toFixed(0)}%)</span>
                     </div>
                     <span style={styles.recText}>REC</span>
                 </div>
@@ -254,6 +257,12 @@ const styles = {
         marginLeft: '10px',
         marginRight: '10px',
         transition: 'all 0.3s ease',
+    },
+
+    confidenceText: {
+        marginLeft: '6px',
+        opacity: 0.8,
+        fontSize: '9px',
     },
 
     timestamp: {

@@ -85,8 +85,8 @@ def detect():
     # DEBUG: Print confidence for every frame to help the user calibrate
     print(f"DEBUG: Frame processed. Confidence: {round(confidence, 4)}")
     
-    # If confidence > 0.5, it's an accident
-    is_accident = confidence > 0.5
+    # If confidence > 0.3, it's an accident (Lowered threshold for better sensitivity)
+    is_accident = confidence > 0.3
 
     # If accident detected, report to backend automatically
     if is_accident:
