@@ -16,6 +16,8 @@ app.use(express.json()); // allow json data in requests
 
 // API Routes
 app.use('/api/auth', require('./routes/authRoutes'));
+app.use('/api/auth', require('./routes/authRoutes'));
+app.use('/api/accidents', require('./routes/accidentRoutes'));
 
 app.get("/api/status", (req, res) => {
 
