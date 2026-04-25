@@ -1,6 +1,10 @@
 const Accident = require("../models/Accident");
 const Contact = require("../models/EmergencyContact");
 const sendEmail = require("../config/mailer");
+const twilio = require("twilio");
+
+// Twilio Client Setup
+const twilioClient = process.env.TWILIO_SID ? twilio(process.env.TWILIO_SID, process.env.TWILIO_AUTH_TOKEN) : null;
 
 // @desc    Create a new accident record (Called by Python AI)
 // @route   POST /api/accidents
@@ -37,6 +41,22 @@ const createAccident = async (req, res) => {
                 
                 // Send to all contacts (for demo, we just send to the first one or a test email)
                 await sendEmail(contactEmails.join(","), subject, "", html);
+            }
+
+            // --- SMS ALERT (TWILIO) ---
+            if (twilioClient && severity === "High") {
+                const mapLink = `https://www.google.com/maps?q=${coordinates.lat},${coordinates.lng}`;
+                const smsBody = `⚠️ APADS EMERGENCY: ${severity} accident at ${location}. Time: ${time}. Map: ${mapLink}`;
+                
+                const contactPhones = contacts.map(c => c.phone).filter(p => p);
+                for (const phone of contactPhones) {
+                    await twilioClient.messages.create({
+                        body: smsBody,
+                        from: process.env.TWILIO_PHONE,
+                        to: phone
+                    });
+                    console.log(`📲 SMS sent to ${phone}`);
+                }
             }
         } catch (alertError) {
             console.error("⚠️ Failed to send emergency alerts:", alertError.message);
