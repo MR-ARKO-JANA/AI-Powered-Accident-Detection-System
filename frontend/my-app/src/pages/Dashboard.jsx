@@ -155,6 +155,23 @@ const Dashboard = () => {
                         </span>
                     </div>
                     <div style={styles.alertsList}>
+                        {/* LIVE STATUS BANNER */}
+                        {!isLoading && (
+                            <div style={{
+                                ...styles.statusBanner,
+                                background: alerts.length === 0 ? 'rgba(16, 185, 129, 0.08)' : 'rgba(244, 63, 94, 0.08)',
+                                borderColor: alerts.length === 0 ? 'var(--accent-emerald)' : 'var(--accent-rose)',
+                                color: alerts.length === 0 ? 'var(--accent-emerald)' : 'var(--accent-rose)',
+                            }}>
+                                <div style={{
+                                    ...styles.statusDot,
+                                    background: alerts.length === 0 ? 'var(--accent-emerald)' : 'var(--accent-rose)',
+                                    boxShadow: alerts.length === 0 ? '0 0 10px var(--accent-emerald-glow)' : '0 0 10px var(--accent-rose-glow)',
+                                }}></div>
+                                {alerts.length === 0 ? 'NO ACCIDENT DETECTED' : 'ACCIDENT DETECTED'}
+                            </div>
+                        )}
+
                         {isLoading ? (
                             <p style={styles.emptyText}>Loading alerts...</p>
                         ) : alerts.length > 0 ? (
@@ -356,6 +373,27 @@ const styles = {
         maxHeight: '380px',
         overflowY: 'auto',
         paddingRight: '4px',
+    },
+
+    statusBanner: {
+        display: 'flex',
+        alignItems: 'center',
+        gap: '12px',
+        padding: '16px',
+        borderRadius: 'var(--radius-md)',
+        border: '1px solid',
+        fontSize: '14px',
+        fontWeight: 700,
+        letterSpacing: '1px',
+        marginBottom: '16px',
+        animation: 'fadeIn 0.5s ease',
+    },
+
+    statusDot: {
+        width: '10px',
+        height: '10px',
+        borderRadius: '50%',
+        animation: 'pulse 2s infinite',
     },
 };
 
