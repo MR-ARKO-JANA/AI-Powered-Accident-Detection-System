@@ -1,17 +1,23 @@
-import React, { useState } from 'react';
+import React, { useState, useContext } from 'react';
 import { Link, useLocation } from "react-router-dom";
+import { AuthContext } from "../context/AuthContext";
 
 function Navbar() {
     const location = useLocation();
+    const { user } = useContext(AuthContext);
     const [hoveredLink, setHoveredLink] = useState(null);
 
+    // Filter links based on role
     const navLinks = [
         { path: '/dashboard', label: 'Dashboard', icon: '◈' },
         { path: '/reports', label: 'Reports', icon: '◎' },
-        { path: '/admin', label: 'Admin', icon: '⬡' },
+        // Only show Admin for 'admin' role
+        ...(user?.details?.role === 'admin' ? [{ path: '/admin', label: 'Admin', icon: '⬡' }] : []),
     ];
 
     const isActive = (path) => location.pathname === path;
+
+    const userInitial = user?.details?.name ? user.details.name[0].toUpperCase() : 'A';
 
     return (
         <header style={styles.container}>
@@ -65,7 +71,7 @@ function Navbar() {
                     onMouseEnter={() => setHoveredLink('profile')}
                     onMouseLeave={() => setHoveredLink(null)}
                 >
-                    <span style={styles.avatarText}>A</span>
+                    <span style={styles.avatarText}>{userInitial}</span>
                 </div>
             </div>
         </header>

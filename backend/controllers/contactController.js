@@ -15,8 +15,8 @@ const getContacts = async (req, res) => {
 // @route   POST /api/contacts
 const addContact = async (req, res) => {
     try {
-        const { name, role, phone } = req.body;
-        const contact = await Contact.create({ name, role, phone });
+        const { name, role, phone, email } = req.body;
+        const contact = await Contact.create({ name, role, phone, email });
         res.status(201).json({ success: true, data: contact });
     } catch (error) {
         res.status(500).json({ success: false, message: error.message });

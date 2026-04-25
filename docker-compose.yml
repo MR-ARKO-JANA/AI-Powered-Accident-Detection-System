@@ -1,0 +1,40 @@
+version: '3.8'
+
+services:
+  # Node.js Backend
+  backend:
+    build: ./backend
+    ports:
+      - "5000:5000"
+    env_file:
+      - ./backend/.env
+    depends_on:
+      - mongodb
+
+  # Python AI Service
+  ai-service:
+    build: ./ai-service
+    ports:
+      - "5001:5001"
+    volumes:
+      - ./ai-service/model:/app/model
+
+  # React Frontend
+  frontend:
+    build: ./frontend/my-app
+    ports:
+      - "3000:3000"
+    stdin_open: true
+    environment:
+      - CHOKIDAR_USEPOLLING=true
+
+  # MongoDB (Optional: if they want to run it in Docker)
+  mongodb:
+    image: mongo:latest
+    ports:
+      - "27017:27017"
+    volumes:
+      - mongo_data:/data/db
+
+volumes:
+  mongo_data:

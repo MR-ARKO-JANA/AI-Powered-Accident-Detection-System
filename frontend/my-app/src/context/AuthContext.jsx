@@ -19,13 +19,13 @@ export const AuthProvider = ({ children }) => {
     const login = async (email, password) => {
         try {
             const response = await API.post('/auth/login', { email, password });
-            const { token, name, _id } = response.data;
+            const { token, name, _id, role } = response.data;
 
             // Save to local storage so they stay logged in after refreshing
             localStorage.setItem('token', token);
-            localStorage.setItem('user', JSON.stringify({ name, _id, email }));
+            localStorage.setItem('user', JSON.stringify({ name, _id, email, role }));
 
-            setUser({ isAuthenticated: true, token, details: { name, _id, email } });
+            setUser({ isAuthenticated: true, token, details: { name, _id, email, role } });
             return { success: true };
         } catch (error) {
             console.error("Login failed:", error.response?.data?.message || error.message);

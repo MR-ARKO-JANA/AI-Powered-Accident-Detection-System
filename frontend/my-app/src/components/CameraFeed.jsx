@@ -76,14 +76,8 @@ const CameraFeed = () => {
                 
                 if (aiResponse.data.accident) {
                     console.warn("⚠️ ACCIDENT DETECTED! Confidence:", aiResponse.data.confidence);
-                    
-                    // Report to Node.js Backend
-                    await API.post('/accidents', {
-                        severity: aiResponse.data.confidence > 0.8 ? "High" : "Medium",
-                        location: "Main Intersection (Live Feed)",
-                        time: new Date().toLocaleTimeString(),
-                        coordinates: { lat: 22.5726, lng: 88.3639 } // Mock coordinates for now
-                    });
+                    // The AI Service now reports directly to the backend.
+                    // We just log it here for UI awareness.
                 }
             } catch (error) {
                 console.error("Detection error:", error);

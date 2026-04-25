@@ -40,10 +40,11 @@ const AdminPanel = () => {
         const name = prompt("Enter Name:");
         const role = prompt("Enter Role (System Admin, Lead Responder, Police Liaison):");
         const phone = prompt("Enter Phone:");
+        const email = prompt("Enter Email (for alerts):");
 
         if (name && role && phone) {
             try {
-                const response = await API.post('/contacts', { name, role, phone });
+                const response = await API.post('/contacts', { name, role, phone, email });
                 if (response.data.success) {
                     setContacts([...contacts, response.data.data]);
                 }
