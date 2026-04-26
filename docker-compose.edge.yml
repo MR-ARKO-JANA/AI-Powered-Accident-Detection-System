@@ -1,0 +1,29 @@
+version: '3.8'
+
+services:
+  ai-service:
+    build: 
+      context: ./ai-service
+      dockerfile: Dockerfile
+    container_name: apads-edge-ai
+    restart: always
+    environment:
+      # The backend URL must point to your cloud server's public IP or domain
+      - BACKEND_URL=http://your-cloud-server-ip:5000/api/accidents
+    ports:
+      - "5001:5001"
+    devices:
+      # Map the physical USB camera to the container
+      # Adjust /dev/video0 if your camera is on a different index
+      - /dev/video0:/dev/video0
+    volumes:
+      # Persist the SQLite offline database so alerts aren't lost if the container restarts
+      - ./local_db:/app/local_db
+    # Uncomment the deploy block below if deploying to an NVIDIA Jetson device
+    # deploy:
+    #   resources:
+    #     reservations:
+    #       devices:
+    #         - driver: nvidia
+    #           count: 1
+    #           capabilities: [gpu]

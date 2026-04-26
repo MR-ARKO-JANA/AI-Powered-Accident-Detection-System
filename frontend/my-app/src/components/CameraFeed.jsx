@@ -1,5 +1,6 @@
 import React, { useRef, useEffect, useState } from 'react';
 import axios from 'axios';
+import io from 'socket.io-client';
 
 const CameraFeed = () => {
     const videoRef = useRef(null);
@@ -9,6 +10,31 @@ const CameraFeed = () => {
     const [isDetecting, setIsDetecting] = useState(false);
     const [detectionStatus, setDetectionStatus] = useState('safe'); // 'safe' or 'accident'
     const [confidence, setConfidence] = useState(0);
+    const [isProcessing, setIsProcessing] = useState(false);
+
+    // Audio Buzzer logic
+    const playBuzzer = () => {
+        try {
+            const audioCtx = new (window.AudioContext || window.webkitAudioContext)();
+            const oscillator = audioCtx.createOscillator();
+            const gainNode = audioCtx.createGain();
+
+            oscillator.type = 'sawtooth';
+            oscillator.frequency.setValueAtTime(150, audioCtx.currentTime); // Low frequency for buzzer
+            
+            gainNode.gain.setValueAtTime(0.1, audioCtx.currentTime);
+            gainNode.gain.exponentialRampToValueAtTime(0.01, audioCtx.currentTime + 0.5);
+
+            oscillator.connect(gainNode);
+            gainNode.connect(audioCtx.destination);
+
+            oscillator.start();
+            oscillator.stop(audioCtx.currentTime + 0.5);
+        } catch (e) {
+            console.error("Audio error:", e);
+        }
+    };
+
 
     useEffect(() => {
         // Request access to the user's webcam
@@ -23,6 +49,20 @@ const CameraFeed = () => {
                 console.error("Camera access denied or no camera found:", err);
                 setIsConnected(false);
             });
+    }, []);
+
+    // Socket.io for global real-time alerts
+    useEffect(() => {
+        const socket = io('http://localhost:5000');
+
+        socket.on('accidentDetected', (data) => {
+            // If an accident is detected (anywhere), show it on the HUD and play buzzer
+            setDetectionStatus('accident');
+            playBuzzer();
+            console.log("🌩️ Global Real-time alert received in HUD");
+        });
+
+        return () => socket.disconnect();
     }, []);
 
     // Live timestamp
@@ -46,7 +86,7 @@ const CameraFeed = () => {
         const interval = setInterval(async () => {
             if (isDetecting) return;
             captureAndDetect();
-        }, 3000); // Check every 3 seconds to avoid overloading
+        }, 1000); // Check every 1 second for better responsiveness
 
         return () => clearInterval(interval);
     }, [isConnected, isDetecting]);
@@ -72,12 +112,14 @@ const CameraFeed = () => {
 
             try {
                 setIsDetecting(true);
+                setIsProcessing(true);
                 // Call AI Flask Service
                 const aiResponse = await axios.post('http://localhost:5001/detect', formData);
                 setConfidence(aiResponse.data.confidence);
                 
                 if (aiResponse.data.accident) {
                     setDetectionStatus('accident');
+                    playBuzzer(); // Trigger buzzer
                     console.warn("⚠️ ACCIDENT DETECTED! Confidence:", aiResponse.data.confidence);
                 } else {
                     setDetectionStatus('safe');
@@ -86,6 +128,7 @@ const CameraFeed = () => {
                 console.error("Detection error:", error);
             } finally {
                 setIsDetecting(false);
+                setIsProcessing(false);
             }
         }, 'image/jpeg');
     };
@@ -102,11 +145,11 @@ const CameraFeed = () => {
                     <div style={styles.recDot}></div>
                     <div style={{
                         ...styles.liveStatusHUD,
-                        color: detectionStatus === 'safe' ? '#10b981' : '#f43f5e',
-                        borderColor: detectionStatus === 'safe' ? 'rgba(16, 185, 129, 0.3)' : 'rgba(244, 63, 94, 0.3)',
-                        background: detectionStatus === 'safe' ? 'rgba(16, 185, 129, 0.1)' : 'rgba(244, 63, 94, 0.1)',
+                        color: isProcessing ? '#fbbf24' : (detectionStatus === 'safe' ? '#10b981' : '#f43f5e'),
+                        borderColor: isProcessing ? 'rgba(251, 191, 36, 0.3)' : (detectionStatus === 'safe' ? 'rgba(16, 185, 129, 0.3)' : 'rgba(244, 63, 94, 0.3)'),
+                        background: isProcessing ? 'rgba(251, 191, 36, 0.1)' : (detectionStatus === 'safe' ? 'rgba(16, 185, 129, 0.1)' : 'rgba(244, 63, 94, 0.1)'),
                     }}>
-                        {detectionStatus === 'safe' ? '● NO ACCIDENT' : '● ACCIDENT DETECTED'}
+                        {isProcessing ? '● PROCESSING...' : (detectionStatus === 'safe' ? '● NORMAL' : '● ACCIDENT')}
                         <span style={styles.confidenceText}>({(confidence * 100).toFixed(0)}%)</span>
                     </div>
                     <span style={styles.recText}>REC</span>

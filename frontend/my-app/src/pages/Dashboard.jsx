@@ -2,13 +2,33 @@ import React, { useState, useEffect } from 'react';
 import CameraFeed from '../components/CameraFeed';
 import AccidentCard from '../components/AccidentCard';
 import API from '../services/api';
+import io from 'socket.io-client';
 
 const Dashboard = () => {
     const [hoveredStat, setHoveredStat] = useState(null);
     const [alerts, setAlerts] = useState([]);
     const [isLoading, setIsLoading] = useState(true);
 
-    // Fetch alerts from the backend
+    // Socket.io Connection
+    useEffect(() => {
+        const socket = io('http://localhost:5000');
+
+        socket.on('connect', () => {
+            console.log("🟢 Connected to APADS Real-time Engine");
+        });
+
+        socket.on('accidentDetected', (newAccident) => {
+            console.log("🚨 REAL-TIME ALERT RECEIVED:", newAccident);
+            // Add new accident to the top of the list instantly
+            setAlerts(prev => [newAccident, ...prev]);
+            
+            // Trigger a visual notification or sound if needed (buzzer is already in CameraFeed)
+        });
+
+        return () => socket.disconnect();
+    }, []);
+
+    // Initial fetch for historical alerts
     const fetchAlerts = async () => {
         try {
             const response = await API.get('/accidents');
@@ -24,9 +44,6 @@ const Dashboard = () => {
 
     useEffect(() => {
         fetchAlerts();
-        // Polling every 5 seconds for live updates
-        const interval = setInterval(fetchAlerts, 5000);
-        return () => clearInterval(interval);
     }, []);
 
     // Stats data
@@ -168,7 +185,7 @@ const Dashboard = () => {
                                     background: alerts.length === 0 ? 'var(--accent-emerald)' : 'var(--accent-rose)',
                                     boxShadow: alerts.length === 0 ? '0 0 10px var(--accent-emerald-glow)' : '0 0 10px var(--accent-rose-glow)',
                                 }}></div>
-                                {alerts.length === 0 ? 'NO ACCIDENT DETECTED' : 'ACCIDENT DETECTED'}
+                                {alerts.length === 0 ? 'NORMAL' : 'ACCIDENT'}
                             </div>
                         )}
 

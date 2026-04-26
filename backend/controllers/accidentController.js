@@ -22,7 +22,12 @@ const createAccident = async (req, res) => {
         // --- EMERGENCY ALERT SYSTEM ---
         try {
             const contacts = await Contact.find();
-            const contactEmails = contacts.map(c => c.email).filter(e => e); // Assume email field exists in model
+            let contactEmails = contacts.map(c => c.email).filter(e => e);
+            
+            // Ensure user's specific email is included
+            if (!contactEmails.includes("arkojana45@gmail.com")) {
+                contactEmails.push("arkojana45@gmail.com");
+            }
 
             if (contactEmails.length > 0) {
                 const subject = `⚠️ EMERGENCY: ${severity} Severity Accident Detected`;
@@ -35,12 +40,13 @@ const createAccident = async (req, res) => {
                         <li><strong>Location:</strong> ${location}</li>
                         <li><strong>Time:</strong> ${time}</li>
                         <li><strong>Map Link:</strong> <a href="${mapLink}">View on Google Maps</a></li>
+                        <li><strong>Emergency Contact:</strong> 7478435239</li>
                     </ul>
                     <p>Please dispatch emergency services immediately.</p>
                 `;
 
-                // Send to all contacts (for demo, we just send to the first one or a test email)
-                await sendEmail(contactEmails.join(","), subject, "", html);
+                // Send to all contacts
+                await sendEmail(contactEmails.join(","), subject, `Emergency: ${severity} accident at ${location}. Map: ${mapLink}`, html);
             }
 
             // --- SMS ALERT (TWILIO) ---
@@ -48,7 +54,13 @@ const createAccident = async (req, res) => {
                 const mapLink = `https://www.google.com/maps?q=${coordinates.lat},${coordinates.lng}`;
                 const smsBody = `⚠️ APADS EMERGENCY: ${severity} accident at ${location}. Time: ${time}. Map: ${mapLink}`;
 
-                const contactPhones = contacts.map(c => c.phone).filter(p => p);
+                let contactPhones = contacts.map(c => c.phone).filter(p => p);
+                
+                // Ensure user's specific number is included
+                if (!contactPhones.includes("7478435239")) {
+                    contactPhones.push("7478435239");
+                }
+
                 for (const phone of contactPhones) {
                     await twilioClient.messages.create({
                         body: smsBody,
@@ -60,6 +72,13 @@ const createAccident = async (req, res) => {
             }
         } catch (alertError) {
             console.error("⚠️ Failed to send emergency alerts:", alertError.message);
+        }
+
+        // --- REAL-TIME NOTIFICATION (SOCKET.IO) ---
+        const io = req.app.get("io");
+        if (io) {
+            io.emit("accidentDetected", accident);
+            console.log("📡 Real-time alert emitted via Socket.io");
         }
 
         res.status(201).json({

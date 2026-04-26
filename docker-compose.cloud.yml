@@ -1,0 +1,43 @@
+version: '3.8'
+
+services:
+  backend:
+    build: 
+      context: ./backend
+      dockerfile: Dockerfile
+    container_name: apads-cloud-backend
+    restart: always
+    ports:
+      - "5000:5000"
+    environment:
+      # Connect to the local mongo service defined below
+      - MONGO_URI=mongodb://mongo:27017/accident_detection
+      # SMTP Settings
+      - EMAIL_USER=arkojana45@gmail.com
+      - EMAIL_PASS=${EMAIL_PASS:-your-app-password-here}
+      - JWT_SECRET=${JWT_SECRET:-production_jwt_secret_key}
+    depends_on:
+      - mongo
+
+  frontend:
+    build: 
+      context: ./frontend/my-app
+      dockerfile: Dockerfile
+    container_name: apads-cloud-frontend
+    restart: always
+    ports:
+      - "3000:80" # Assuming frontend Dockerfile uses Nginx on port 80
+    depends_on:
+      - backend
+
+  mongo:
+    image: mongo:latest
+    container_name: apads-cloud-db
+    restart: always
+    ports:
+      - "27017:27017" # Expose only if you need direct external DB access
+    volumes:
+      - mongo_data:/data/db
+
+volumes:
+  mongo_data:

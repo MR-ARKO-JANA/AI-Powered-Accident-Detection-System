@@ -15,14 +15,83 @@ model = tf.keras.models.load_model(model_path)
 import requests
 import datetime
 import time
+import socketio
+import sqlite3
+import threading
+import json
+
+# Socket.io Client Setup
+sio = socketio.Client()
+
+@sio.event
+def connect():
+    print("🔌 Connected to Node.js WebSocket Server")
+
+@sio.event
+def disconnect():
+    print("❌ Disconnected from Node.js WebSocket Server")
+
+try:
+    sio.connect('http://localhost:5000')
+except Exception as e:
+    print(f"⚠️ Socket.io connection failed: {e}")
 
 # Cooldown to prevent spamming alerts (e.g., 30 seconds)
 last_report_time = 0
 COOLDOWN_SECONDS = 30
 BACKEND_URL = "http://localhost:5000/api/accidents"
 
+# --- OFFLINE QUEUING SETUP ---
+DB_FILE = os.path.join(os.path.dirname(os.path.abspath(__file__)), 'offline_alerts.db')
+
+def init_db():
+    conn = sqlite3.connect(DB_FILE)
+    c = conn.cursor()
+    c.execute('''CREATE TABLE IF NOT EXISTS alerts
+                 (id INTEGER PRIMARY KEY AUTOINCREMENT,
+                  payload TEXT,
+                  timestamp DATETIME DEFAULT CURRENT_TIMESTAMP)''')
+    conn.commit()
+    conn.close()
+
+init_db()
+
+def recovery_daemon():
+    """Background thread to flush queued offline alerts when connection returns."""
+    while True:
+        try:
+            conn = sqlite3.connect(DB_FILE)
+            c = conn.cursor()
+            c.execute("SELECT id, payload FROM alerts")
+            rows = c.fetchall()
+            
+            if rows:
+                print(f"🔄 Recovery Daemon found {len(rows)} offline alerts. Attempting flush...")
+                for row in rows:
+                    alert_id, payload_str = row
+                    payload = json.loads(payload_str)
+                    
+                    try:
+                        resp = requests.post(BACKEND_URL, json=payload, timeout=3)
+                        if resp.status_code == 201:
+                            c.execute("DELETE FROM alerts WHERE id = ?", (alert_id,))
+                            conn.commit()
+                            print(f"✅ Offline alert {alert_id} successfully flushed to backend.")
+                    except Exception as req_err:
+                        break # Still offline, break loop to try again later
+            conn.close()
+        except Exception as e:
+            print(f"⚠️ Recovery Daemon Error: {e}")
+        
+        time.sleep(5) # Check every 5 seconds
+
+# Start the daemon
+daemon = threading.Thread(target=recovery_daemon, daemon=True)
+daemon.start()
+# -----------------------------
+
 def report_accident_to_backend(confidence):
-    """Sends accident details to the Node.js backend API"""
+    """Sends accident details to the Node.js backend API and emits via Socket.io"""
     global last_report_time
     current_time = time.time()
     
@@ -30,24 +99,43 @@ def report_accident_to_backend(confidence):
         print(f"⏳ Cooldown active. Skipping report. (Next in {int(COOLDOWN_SECONDS - (current_time - last_report_time))}s)")
         return
 
-    try:
-        payload = {
-            "severity": "High" if confidence > 0.8 else "Low",
-            "location": "Main Intersection (AI Detection)",
-            "time": datetime.datetime.now().strftime("%I:%M %p"),
-            "coordinates": {
-                "lat": 22.5726,
-                "lng": 88.3639
-            }
+    payload = {
+        "severity": "High" if confidence > 0.8 else "Low",
+        "location": "Main Intersection (AI Detection)",
+        "time": datetime.datetime.now().strftime("%I:%M %p"),
+        "coordinates": {
+            "lat": 22.5726,
+            "lng": 88.3639
         }
-        response = requests.post(BACKEND_URL, json=payload)
+    }
+
+    # PUSH TO WEBSOCKET INSTANTLY (The exact millisecond)
+    try:
+        sio.emit('accident_detected_raw', payload)
+        print(f"🚀 Pushed real-time event to Socket.io! Confidence: {confidence}")
+    except Exception as e:
+        print(f"⚠️ Socket.io emit failed: {e}")
+
+    # Also save to DB via HTTP for persistence
+    try:
+        response = requests.post(BACKEND_URL, json=payload, timeout=3)
         if response.status_code == 201:
             last_report_time = current_time
-            print(f"✅ Accident reported to backend! Confidence: {confidence}")
+            print(f"✅ Accident saved to DB!")
         else:
-            print(f"❌ Failed to report: {response.status_code}")
+            print(f"❌ Failed to save to DB: {response.status_code}")
     except Exception as e:
-        print(f"⚠️ Error reporting to backend: {e}")
+        print(f"⚠️ Network error reporting to backend: {e}")
+        print("💾 Saving to local SQLite offline queue...")
+        try:
+            conn = sqlite3.connect(DB_FILE)
+            c = conn.cursor()
+            c.execute("INSERT INTO alerts (payload) VALUES (?)", (json.dumps(payload),))
+            conn.commit()
+            conn.close()
+            last_report_time = current_time # Update cooldown even if offline
+        except Exception as db_err:
+            print(f"❌ Critical Error: Could not save to offline DB! {db_err}")
 
 @app.route('/detect', methods=['POST'])
 def detect():
