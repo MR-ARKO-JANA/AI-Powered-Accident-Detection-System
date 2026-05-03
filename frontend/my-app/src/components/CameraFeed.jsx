@@ -1,4 +1,4 @@
-import React, { useRef, useEffect, useState } from 'react';
+import React, { useRef, useEffect, useState, useCallback } from 'react';
 import axios from 'axios';
 import io from 'socket.io-client';
 
@@ -13,7 +13,7 @@ const CameraFeed = () => {
     const [isProcessing, setIsProcessing] = useState(false);
 
     // Audio Buzzer logic
-    const playBuzzer = () => {
+    const playBuzzer = useCallback(() => {
         try {
             const audioCtx = new (window.AudioContext || window.webkitAudioContext)();
             const oscillator = audioCtx.createOscillator();
@@ -33,7 +33,7 @@ const CameraFeed = () => {
         } catch (e) {
             console.error("Audio error:", e);
         }
-    };
+    }, []);
 
 
     useEffect(() => {
@@ -89,9 +89,9 @@ const CameraFeed = () => {
         }, 1000); // Check every 1 second for better responsiveness
 
         return () => clearInterval(interval);
-    }, [isConnected, isDetecting]);
+    }, [isConnected, isDetecting, captureAndDetect]);
 
-    const captureAndDetect = async () => {
+    const captureAndDetect = useCallback(async () => {
         if (!videoRef.current || !canvasRef.current) return;
 
         const video = videoRef.current;
@@ -131,7 +131,7 @@ const CameraFeed = () => {
                 setIsProcessing(false);
             }
         }, 'image/jpeg');
-    };
+    }, [playBuzzer]);
 
     return (
         <div style={styles.container}>

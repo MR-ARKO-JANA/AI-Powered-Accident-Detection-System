@@ -1,0 +1,3 @@
+@echo off
+echo 🚀 Starting all APADS services...
+npm run dev

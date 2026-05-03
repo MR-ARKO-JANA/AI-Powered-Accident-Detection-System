@@ -1,7 +1,8 @@
+import os
+os.environ['TF_CPP_MIN_LOG_LEVEL'] = '2' 
 import cv2
 import numpy as np
 import tensorflow as tf
-import os  # Added for path handling 
 from flask import Flask, request, jsonify  # Added for the AI API [cite: 46, 49]
 from flask_cors import CORS # Recommended for handling cross-origin requests from React [cite: 66]
 
