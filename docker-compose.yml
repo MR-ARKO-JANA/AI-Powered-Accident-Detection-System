@@ -42,5 +42,15 @@ services:
     ports:
       - "6379:6379"
 
+  # Celery Background Worker
+  celery-worker:
+    build: ./ai-service
+    command: celery -A tasks.celery worker --loglevel=info
+    volumes:
+      - ./ai-service/model:/app/model
+    depends_on:
+      - redis
+      - backend
+
 volumes:
   mongo_data:
