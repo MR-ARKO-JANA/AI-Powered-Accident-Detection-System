@@ -1,6 +1,10 @@
 const mongoose = require("mongoose");
 
 const accidentSchema = new mongoose.Schema({
+    camId: {
+        type: String,
+        default: "CAM-01"
+    },
     severity: {
         type: String,
         required: true,
@@ -21,6 +25,14 @@ const accidentSchema = new mongoose.Schema({
     alertSent: {
         type: Boolean,
         default: false
+    },
+    licensePlate: {
+        type: String,
+        default: "Unknown"
+    },
+    mediaUrl: {
+        type: String,
+        default: ""
     }
 
 }, { timestamps: true });

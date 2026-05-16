@@ -76,9 +76,19 @@ const AccidentCard = ({ data, index = 0 }) => {
                         <span style={styles.detailValue}>{data.location}</span>
                     </div>
                     <div style={styles.detailItem}>
+                        <span style={styles.detailIcon}>▣</span>
+                        <span style={styles.detailLabel}>Cam ID</span>
+                        <span style={styles.detailValue}>{data.camId || "CAM-01"}</span>
+                    </div>
+                    <div style={styles.detailItem}>
                         <span style={styles.detailIcon}>◷</span>
                         <span style={styles.detailLabel}>Time</span>
                         <span style={styles.detailValue}>{data.time}</span>
+                    </div>
+                    <div style={styles.detailItem}>
+                        <span style={styles.detailIcon}>🆔</span>
+                        <span style={styles.detailLabel}>Plate</span>
+                        <span style={{...styles.detailValue, color: 'var(--accent-cyan)', fontWeight: 700}}>{data.licensePlate || "Unknown"}</span>
                     </div>
                 </div>
             </div>

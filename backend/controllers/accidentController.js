@@ -1,22 +1,22 @@
 const Accident = require("../models/Accident");
 const Contact = require("../models/EmergencyContact");
 const sendEmail = require("../config/mailer");
-const twilio = require("twilio");
-
-// Twilio Client Setup
-const twilioClient = process.env.TWILIO_SID ? twilio(process.env.TWILIO_SID, process.env.TWILIO_AUTH_TOKEN) : null;
+const { sendEmergencySMS } = require("../utils/smsService");
 
 // @desc    Create a new accident record (Called by Python AI)
 // @route   POST /api/accidents
 const createAccident = async (req, res) => {
     try {
-        const { severity, location, time, coordinates } = req.body;
+        const { camId, severity, location, time, coordinates, licensePlate, mediaUrl } = req.body;
 
         const accident = await Accident.create({
+            camId: camId || "CAM-01",
             severity,
             location,
             time,
-            coordinates
+            coordinates,
+            licensePlate: licensePlate || "Unknown",
+            mediaUrl: mediaUrl || ""
         });
 
         // --- EMERGENCY ALERT SYSTEM ---
@@ -49,25 +49,24 @@ const createAccident = async (req, res) => {
                 await sendEmail(contactEmails.join(","), subject, `Emergency: ${severity} accident at ${location}. Map: ${mapLink}`, html);
             }
 
-            // --- SMS ALERT (TWILIO) ---
-            if (twilioClient && severity === "High") {
+            // --- SMS ALERT (TWILIO SERVICE) ---
+            if (severity === "High") {
                 const mapLink = `https://www.google.com/maps?q=${coordinates.lat},${coordinates.lng}`;
-                const smsBody = `⚠️ APADS EMERGENCY: ${severity} accident at ${location}. Time: ${time}. Map: ${mapLink}`;
-
+                
                 let contactPhones = contacts.map(c => c.phone).filter(p => p);
                 
-                // Ensure user's specific number is included
+                // Ensure specific number is included
                 if (!contactPhones.includes("7478435239")) {
                     contactPhones.push("7478435239");
                 }
 
                 for (const phone of contactPhones) {
-                    await twilioClient.messages.create({
-                        body: smsBody,
-                        from: process.env.TWILIO_PHONE,
-                        to: phone
+                    await sendEmergencySMS(phone, {
+                        location: location,
+                        severity: severity,
+                        url: mapLink
                     });
-                    console.log(`📲 SMS sent to ${phone}`);
+                    console.log(`📲 Emergency SMS triggered for ${phone}`);
                 }
             }
         } catch (alertError) {

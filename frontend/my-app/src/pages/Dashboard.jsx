@@ -7,6 +7,7 @@ import io from 'socket.io-client';
 const Dashboard = () => {
     const [hoveredStat, setHoveredStat] = useState(null);
     const [alerts, setAlerts] = useState([]);
+    const [sosAlerts, setSosAlerts] = useState([]);
     const [isLoading, setIsLoading] = useState(true);
 
     // Socket.io Connection
@@ -19,10 +20,18 @@ const Dashboard = () => {
 
         socket.on('accidentDetected', (newAccident) => {
             console.log("🚨 REAL-TIME ALERT RECEIVED:", newAccident);
-            // Add new accident to the top of the list instantly
             setAlerts(prev => [newAccident, ...prev]);
-            
-            // Trigger a visual notification or sound if needed (buzzer is already in CameraFeed)
+        });
+
+        // Voice SOS real-time listener
+        socket.on('sosAlertReceived', (newSOS) => {
+            console.log("🆘 VOICE SOS ALERT RECEIVED:", newSOS);
+            setSosAlerts(prev => [newSOS, ...prev]);
+        });
+
+        socket.on('sosCancelled', ({ id }) => {
+            console.log("🚫 SOS CANCELLED:", id);
+            setSosAlerts(prev => prev.map(a => a._id === id ? { ...a, cancelled: true } : a));
         });
 
         return () => socket.disconnect();
@@ -42,8 +51,21 @@ const Dashboard = () => {
         }
     };
 
+    // Fetch SOS history
+    const fetchSOSAlerts = async () => {
+        try {
+            const response = await API.get('/sos');
+            if (response.data.success) {
+                setSosAlerts(response.data.data);
+            }
+        } catch (error) {
+            console.error("Error fetching SOS alerts:", error);
+        }
+    };
+
     useEffect(() => {
         fetchAlerts();
+        fetchSOSAlerts();
     }, []);
 
     // Stats data
@@ -146,7 +168,7 @@ const Dashboard = () => {
                             <div style={styles.panelAccent}></div>
                             <h2 style={styles.panelTitle}>Live Surveillance</h2>
                         </div>
-                        <span style={styles.panelBadge}>CAM-01</span>
+                        <span style={styles.panelBadge}>{alerts[0]?.camId || "CAM-01"}</span>
                     </div>
                     <CameraFeed />
                 </div>
@@ -206,6 +228,89 @@ const Dashboard = () => {
                 </div>
 
             </div>
+
+            {/* ── Voice SOS Alerts Panel ────────────────────────────── */}
+            {sosAlerts.length > 0 && (
+                <div style={{ ...styles.panel, marginTop: '24px', opacity: 1, animationDelay: '0.3s' }}>
+                    <div style={styles.panelHeader}>
+                        <div style={styles.panelTitleGroup}>
+                            <div style={{
+                                ...styles.panelAccent,
+                                background: '#f97316',
+                                boxShadow: '0 0 8px rgba(249, 115, 22, 0.4)',
+                            }}></div>
+                            <h2 style={styles.panelTitle}>🆘 Voice SOS Alerts</h2>
+                        </div>
+                        <span style={{
+                            ...styles.panelBadge,
+                            background: 'rgba(249, 115, 22, 0.1)',
+                            color: '#f97316',
+                            border: '1px solid rgba(249, 115, 22, 0.2)',
+                        }}>
+                            {sosAlerts.filter(a => !a.cancelled).length} active
+                        </span>
+                    </div>
+                    <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fill, minmax(340px, 1fr))', gap: '12px', maxHeight: '400px', overflowY: 'auto' }}>
+                        {sosAlerts.map((sos, index) => {
+                            const domainColors = {
+                                Medical: { bg: 'rgba(239, 68, 68, 0.08)', border: 'rgba(239, 68, 68, 0.25)', text: '#ef4444', icon: '🚑' },
+                                Fire:    { bg: 'rgba(249, 115, 22, 0.08)', border: 'rgba(249, 115, 22, 0.25)', text: '#f97316', icon: '🔥' },
+                                Police:  { bg: 'rgba(59, 130, 246, 0.08)', border: 'rgba(59, 130, 246, 0.25)', text: '#3b82f6', icon: '🚔' },
+                            };
+                            const dc = domainColors[sos.domain] || domainColors.Medical;
+                            return (
+                                <div key={sos._id || index} style={{
+                                    background: sos.cancelled ? 'rgba(107, 114, 128, 0.05)' : dc.bg,
+                                    border: `1px solid ${sos.cancelled ? 'rgba(107, 114, 128, 0.2)' : dc.border}`,
+                                    borderRadius: 'var(--radius-md)',
+                                    padding: '16px',
+                                    opacity: sos.cancelled ? 0.5 : 1,
+                                    transition: 'all 0.3s ease',
+                                    animation: 'fadeInUp 0.4s ease forwards',
+                                    animationDelay: `${index * 0.05}s`,
+                                }}>
+                                    <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '10px' }}>
+                                        <span style={{ fontSize: '20px' }}>{dc.icon}</span>
+                                        <div style={{ display: 'flex', gap: '6px', alignItems: 'center' }}>
+                                            {sos.cancelled && (
+                                                <span style={{ fontSize: '10px', fontWeight: 700, color: '#6b7280', background: 'rgba(107, 114, 128, 0.15)', padding: '2px 8px', borderRadius: '20px', letterSpacing: '0.5px' }}>CANCELLED</span>
+                                            )}
+                                            <span style={{
+                                                fontSize: '10px', fontWeight: 700, letterSpacing: '0.5px',
+                                                color: sos.severity === 'Critical' ? '#ef4444' : sos.severity === 'High' ? '#f59e0b' : '#6b7280',
+                                                background: sos.severity === 'Critical' ? 'rgba(239, 68, 68, 0.12)' : sos.severity === 'High' ? 'rgba(245, 158, 11, 0.12)' : 'rgba(107, 114, 128, 0.12)',
+                                                padding: '2px 8px', borderRadius: '20px',
+                                            }}>{sos.severity}</span>
+                                        </div>
+                                    </div>
+                                    <div style={{ fontSize: '14px', fontWeight: 700, color: sos.cancelled ? '#6b7280' : dc.text, marginBottom: '4px' }}>
+                                        {sos.domain} Emergency
+                                    </div>
+                                    {sos.transcript && (
+                                        <div style={{ fontSize: '12px', color: 'var(--text-muted)', fontStyle: 'italic', marginBottom: '8px', lineHeight: 1.4 }}>
+                                            "{sos.transcript}"
+                                        </div>
+                                    )}
+                                    <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', fontSize: '10px', color: 'var(--text-muted)' }}>
+                                        <span>Confidence: {(sos.confidence * 100).toFixed(0)}%</span>
+                                        <span>{new Date(sos.createdAt).toLocaleTimeString()}</span>
+                                    </div>
+                                    {sos.coordinates && sos.coordinates.lat !== 0 && (
+                                        <a
+                                            href={`https://www.google.com/maps?q=${sos.coordinates.lat},${sos.coordinates.lng}`}
+                                            target="_blank"
+                                            rel="noopener noreferrer"
+                                            style={{ fontSize: '10px', color: dc.text, marginTop: '6px', display: 'inline-block', textDecoration: 'none', fontWeight: 600 }}
+                                        >
+                                            📍 View Location
+                                        </a>
+                                    )}
+                                </div>
+                            );
+                        })}
+                    </div>
+                </div>
+            )}
         </div>
     );
 };

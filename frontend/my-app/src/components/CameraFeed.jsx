@@ -79,18 +79,6 @@ const CameraFeed = () => {
         return () => clearInterval(timer);
     }, []);
 
-    // Detection Loop
-    useEffect(() => {
-        if (!isConnected) return;
-
-        const interval = setInterval(async () => {
-            if (isDetecting) return;
-            captureAndDetect();
-        }, 1000); // Check every 1 second for better responsiveness
-
-        return () => clearInterval(interval);
-    }, [isConnected, isDetecting, captureAndDetect]);
-
     const captureAndDetect = useCallback(async () => {
         if (!videoRef.current || !canvasRef.current) return;
 
@@ -132,6 +120,18 @@ const CameraFeed = () => {
             }
         }, 'image/jpeg');
     }, [playBuzzer]);
+
+    // Detection Loop
+    useEffect(() => {
+        if (!isConnected) return;
+
+        const interval = setInterval(async () => {
+            if (isDetecting) return;
+            captureAndDetect();
+        }, 1000); // Check every 1 second for better responsiveness
+
+        return () => clearInterval(interval);
+    }, [isConnected, isDetecting, captureAndDetect]);
 
     return (
         <div style={styles.container}>

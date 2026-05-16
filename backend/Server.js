@@ -1,5 +1,6 @@
 const express = require("express");
 const cors = require("cors");
+const path = require("path");
 const dotenv = require("dotenv");
 const connectDB = require("./config/db");
 
@@ -33,6 +34,12 @@ io.on("connection", (socket) => {
         socket.broadcast.emit("accidentDetected", data);
     });
 
+    // Listen for Voice SOS alerts from mobile devices
+    socket.on("sos_alert_raw", (data) => {
+        console.log("🆘 Voice SOS received via Socket.io. Broadcasting...");
+        socket.broadcast.emit("sosAlertReceived", data);
+    });
+
     socket.on("disconnect", () => console.log("❌ Client disconnected"));
 });
 
@@ -40,10 +47,15 @@ io.on("connection", (socket) => {
 app.use(cors()); // allow cross origin requests 
 app.use(express.json()); // allow json data in requests 
 
+// Serve static files (uploaded images)
+app.use('/uploads', express.static(path.join(__dirname, 'uploads')));
+
 // API Routes
 app.use('/api/auth', require('./routes/authRoutes'));
 app.use('/api/accidents', require('./routes/accidentRoutes'));
+app.use('/api/sos', require('./routes/sosRoutes'));
 app.use('/api/contacts', require('./routes/contactRoutes'));
+app.use('/api/upload', require('./routes/uploadRoutes'));
 
 app.get("/api/status", (req, res) => {
     res.json({
@@ -55,6 +67,10 @@ app.get("/api/status", (req, res) => {
 
 const PORT = process.env.PORT || 5000;
 
-server.listen(PORT, () => {
-    console.log(`Server running on port ${PORT}`);
-})
+if (require.main === module) {
+    server.listen(PORT, () => {
+        console.log(`Server running on port ${PORT}`);
+    });
+}
+
+module.exports = { app, server };
