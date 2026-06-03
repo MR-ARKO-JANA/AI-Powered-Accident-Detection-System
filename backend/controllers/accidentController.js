@@ -20,57 +20,59 @@ const createAccident = async (req, res) => {
         });
 
         // --- EMERGENCY ALERT SYSTEM ---
-        try {
-            const contacts = await Contact.find();
-            let contactEmails = contacts.map(c => c.email).filter(e => e);
-            
-            // Ensure user's specific email is included
-            if (!contactEmails.includes("arkojana45@gmail.com")) {
-                contactEmails.push("arkojana45@gmail.com");
-            }
-
-            if (contactEmails.length > 0) {
-                const subject = `⚠️ EMERGENCY: ${severity} Severity Accident Detected`;
-                const mapLink = `https://www.google.com/maps?q=${coordinates.lat},${coordinates.lng}`;
-                const html = `
-                    <h2>Emergency Alert</h2>
-                    <p>An accident has been detected by the AI surveillance system.</p>
-                    <ul>
-                        <li><strong>Severity:</strong> ${severity}</li>
-                        <li><strong>Location:</strong> ${location}</li>
-                        <li><strong>Time:</strong> ${time}</li>
-                        <li><strong>Map Link:</strong> <a href="${mapLink}">View on Google Maps</a></li>
-                        <li><strong>Emergency Contact:</strong> 7478435239</li>
-                    </ul>
-                    <p>Please dispatch emergency services immediately.</p>
-                `;
-
-                // Send to all contacts
-                await sendEmail(contactEmails.join(","), subject, `Emergency: ${severity} accident at ${location}. Map: ${mapLink}`, html);
-            }
-
-            // --- SMS ALERT (TWILIO SERVICE) ---
-            if (severity === "High") {
-                const mapLink = `https://www.google.com/maps?q=${coordinates.lat},${coordinates.lng}`;
+        if (process.env.NODE_ENV !== 'test') {
+            try {
+                const contacts = await Contact.find();
+                let contactEmails = contacts.map(c => c.email).filter(e => e);
                 
-                let contactPhones = contacts.map(c => c.phone).filter(p => p);
-                
-                // Ensure specific number is included
-                if (!contactPhones.includes("7478435239")) {
-                    contactPhones.push("7478435239");
+                // Ensure user's specific email is included
+                if (!contactEmails.includes("arkojana45@gmail.com")) {
+                    contactEmails.push("arkojana45@gmail.com");
                 }
 
-                for (const phone of contactPhones) {
-                    await sendEmergencySMS(phone, {
-                        location: location,
-                        severity: severity,
-                        url: mapLink
-                    });
-                    console.log(`📲 Emergency SMS triggered for ${phone}`);
+                if (contactEmails.length > 0) {
+                    const subject = `⚠️ EMERGENCY: ${severity} Severity Accident Detected`;
+                    const mapLink = `https://www.google.com/maps?q=${coordinates.lat},${coordinates.lng}`;
+                    const html = `
+                        <h2>Emergency Alert</h2>
+                        <p>An accident has been detected by the AI surveillance system.</p>
+                        <ul>
+                            <li><strong>Severity:</strong> ${severity}</li>
+                            <li><strong>Location:</strong> ${location}</li>
+                            <li><strong>Time:</strong> ${time}</li>
+                            <li><strong>Map Link:</strong> <a href="${mapLink}">View on Google Maps</a></li>
+                            <li><strong>Emergency Contact:</strong> 7478435239</li>
+                        </ul>
+                        <p>Please dispatch emergency services immediately.</p>
+                    `;
+
+                    // Send to all contacts
+                    await sendEmail(contactEmails.join(","), subject, `Emergency: ${severity} accident at ${location}. Map: ${mapLink}`, html);
                 }
+
+                // --- SMS ALERT (TWILIO SERVICE) ---
+                if (severity === "High") {
+                    const mapLink = `https://www.google.com/maps?q=${coordinates.lat},${coordinates.lng}`;
+                    
+                    let contactPhones = contacts.map(c => c.phone).filter(p => p);
+                    
+                    // Ensure specific number is included
+                    if (!contactPhones.includes("7478435239")) {
+                        contactPhones.push("7478435239");
+                    }
+
+                    for (const phone of contactPhones) {
+                        await sendEmergencySMS(phone, {
+                            location: location,
+                            severity: severity,
+                            url: mapLink
+                        });
+                        console.log(`📲 Emergency SMS triggered for ${phone}`);
+                    }
+                }
+            } catch (alertError) {
+                console.error("⚠️ Failed to send emergency alerts:", alertError.message);
             }
-        } catch (alertError) {
-            console.error("⚠️ Failed to send emergency alerts:", alertError.message);
         }
 
         // --- REAL-TIME NOTIFICATION (SOCKET.IO) ---
