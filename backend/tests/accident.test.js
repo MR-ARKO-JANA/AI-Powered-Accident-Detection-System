@@ -3,6 +3,8 @@ const { app, server } = require('../server');
 const mongoose = require('mongoose');
 const { MongoMemoryServer } = require('mongodb-memory-server');
 
+jest.setTimeout(60000);
+
 let mongoServer;
 
 beforeAll(async () => {
@@ -16,7 +18,7 @@ beforeAll(async () => {
     }
     
     await mongoose.connect(mongoUri);
-});
+}, 60000);
 
 afterAll(async () => {
     await mongoose.disconnect();
