@@ -10,7 +10,9 @@ const { Server } = require("socket.io");
 
 dotenv.config(); // load env variable from  .env file  
 
-connectDB(); // connect to database 
+if (process.env.NODE_ENV !== 'test') {
+    connectDB(); // connect to database 
+}
 
 const app = express();  // initialize express app
 const server = http.createServer(app);
