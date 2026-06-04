@@ -62,6 +62,10 @@ class MainActivity : AppCompatActivity() {
         }
         layout.addView(subtitle, marginParams(bottom = 48))
 
+        // Load persistent service running state
+        val prefs = getSharedPreferences("apads_sos_prefs", MODE_PRIVATE)
+        isServiceRunning = prefs.getBoolean("sos_enabled", false)
+
         // Status Card
         val statusCard = android.widget.LinearLayout(this).apply {
             orientation = android.widget.LinearLayout.VERTICAL
@@ -82,9 +86,9 @@ class MainActivity : AppCompatActivity() {
         statusCard.addView(statusLabel, marginParams(bottom = 8))
 
         val statusText = TextView(this).apply {
-            text = "● INACTIVE"
+            text = if (isServiceRunning) "● ACTIVE — LISTENING" else "● INACTIVE"
             textSize = 18f
-            setTextColor(0xFFEF4444.toInt())
+            setTextColor(if (isServiceRunning) 0xFF10B981.toInt() else 0xFFEF4444.toInt())
             typeface = android.graphics.Typeface.DEFAULT_BOLD
         }
         statusCard.addView(statusText, marginParams(bottom = 8))
@@ -101,13 +105,13 @@ class MainActivity : AppCompatActivity() {
 
         // Start/Stop Button
         val toggleBtn = Button(this).apply {
-            text = "▶  START SOS PROTECTION"
+            text = if (isServiceRunning) "⬛  STOP SOS PROTECTION" else "▶  START SOS PROTECTION"
             textSize = 16f
             setTextColor(0xFFFFFFFF.toInt())
             isAllCaps = false
             setPadding(0, 36, 0, 36)
             background = android.graphics.drawable.GradientDrawable().apply {
-                setColor(0xFF10B981.toInt())
+                setColor(if (isServiceRunning) 0xFFEF4444.toInt() else 0xFF10B981.toInt())
                 cornerRadius = 16f
             }
         }
@@ -199,6 +203,9 @@ class MainActivity : AppCompatActivity() {
     // ── Service Control ──────────────────────────────────────────────
 
     private fun startSOSService() {
+        val prefs = getSharedPreferences("apads_sos_prefs", MODE_PRIVATE)
+        prefs.edit().putBoolean("sos_enabled", true).apply()
+
         val intent = Intent(this, SOSForegroundService::class.java)
         if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.O) {
             startForegroundService(intent)
@@ -209,6 +216,9 @@ class MainActivity : AppCompatActivity() {
     }
 
     private fun stopSOSService() {
+        val prefs = getSharedPreferences("apads_sos_prefs", MODE_PRIVATE)
+        prefs.edit().putBoolean("sos_enabled", false).apply()
+
         val intent = Intent(this, SOSForegroundService::class.java)
         stopService(intent)
         Toast.makeText(this, "SOS Protection deactivated", Toast.LENGTH_SHORT).show()
