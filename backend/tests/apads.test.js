@@ -204,12 +204,16 @@ describe('APADS Full System API Endpoints', () => {
             expect(res.body.data.severity).toEqual('High'); // derived from confidence 0.6
         });
 
-        it('should fetch all SOS alerts', async () => {
+        it('should fetch all SOS alerts with pagination', async () => {
             const res = await request(app).get('/api/sos');
             expect(res.statusCode).toEqual(200);
             expect(res.body.success).toBeTruthy();
             expect(Array.isArray(res.body.data)).toBeTruthy();
             expect(res.body.data.length).toBeGreaterThanOrEqual(2);
+            // Verify pagination structure
+            expect(res.body.pagination).toBeDefined();
+            expect(res.body.pagination.page).toEqual(1);
+            expect(res.body.pagination.total).toBeGreaterThanOrEqual(2);
         });
 
         it('should cancel SOS alert within grace window', async () => {
