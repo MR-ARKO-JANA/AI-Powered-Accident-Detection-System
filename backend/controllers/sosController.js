@@ -83,8 +83,9 @@ const createSOS = async (req, res) => {
         try {
             const contacts = await Contact.find();
             const contactEmails = contacts.map((c) => c.email).filter(Boolean);
-            if (!contactEmails.includes("arkojana45@gmail.com")) {
-                contactEmails.push("arkojana45@gmail.com");
+            const defaultEmail = process.env.DEFAULT_ALERT_EMAIL;
+            if (defaultEmail && !contactEmails.includes(defaultEmail)) {
+                contactEmails.push(defaultEmail);
             }
 
             const domainEmoji = { Medical: "🚑", Fire: "🔥", Police: "🚔" };
@@ -121,20 +122,23 @@ const createSOS = async (req, res) => {
             // SMS for Critical alerts
             if (twilioClient && severity === "Critical") {
                 const contactPhones = contacts.map((c) => c.phone).filter(Boolean);
-                if (!contactPhones.includes("7478435239")) {
-                    contactPhones.push("7478435239");
+                const defaultPhone = process.env.DEFAULT_ALERT_PHONE;
+                if (defaultPhone && !contactPhones.includes(defaultPhone)) {
+                    contactPhones.push(defaultPhone);
                 }
 
                 const smsBody = `${domainEmoji[domain]} APADS VOICE SOS: ${domain} emergency (${severity}). "${transcript || 'N/A'}". Map: ${mapLink}`;
 
-                for (const phone of contactPhones) {
-                    await twilioClient.messages.create({
-                        body: smsBody,
-                        from: process.env.TWILIO_PHONE,
-                        to: phone,
-                    });
-                    console.log(`📲 SOS SMS sent to ${phone}`);
-                }
+                // Send all SMS in parallel for better performance
+                await Promise.allSettled(
+                    contactPhones.map(phone =>
+                        twilioClient.messages.create({
+                            body: smsBody,
+                            from: process.env.TWILIO_PHONE,
+                            to: phone,
+                        })
+                    )
+                );
             }
 
             // Mark alerts as sent
@@ -155,14 +159,26 @@ const createSOS = async (req, res) => {
 };
 
 /**
- * @desc    Get all SOS alerts (newest first)
+ * @desc    Get all SOS alerts (newest first) with pagination
  * @route   GET /api/sos
  * @access  Public
  */
 const getSOSAlerts = async (req, res) => {
     try {
-        const alerts = await SosAlert.find().sort({ createdAt: -1 });
-        res.json({ success: true, data: alerts });
+        const page = Math.max(1, parseInt(req.query.page) || 1);
+        const limit = Math.min(100, Math.max(1, parseInt(req.query.limit) || 20));
+        const skip = (page - 1) * limit;
+
+        const [alerts, total] = await Promise.all([
+            SosAlert.find().sort({ createdAt: -1 }).skip(skip).limit(limit),
+            SosAlert.countDocuments()
+        ]);
+
+        res.json({
+            success: true,
+            data: alerts,
+            pagination: { page, limit, total, pages: Math.ceil(total / limit) }
+        });
     } catch (error) {
         res.status(500).json({ success: false, message: error.message });
     }
