@@ -80,72 +80,74 @@ const createSOS = async (req, res) => {
         }
 
         // ── Emergency Alert Pipeline (Email + SMS) ──────────────────
-        try {
-            const contacts = await Contact.find();
-            const contactEmails = contacts.map((c) => c.email).filter(Boolean);
-            const defaultEmail = process.env.DEFAULT_ALERT_EMAIL;
-            if (defaultEmail && !contactEmails.includes(defaultEmail)) {
-                contactEmails.push(defaultEmail);
-            }
-
-            const domainEmoji = { Medical: "🚑", Fire: "🔥", Police: "🚔" };
-            const mapLink = `https://www.google.com/maps?q=${coordinates.lat},${coordinates.lng}`;
-            const timeStr = new Date().toLocaleTimeString("en-US", {
-                hour: "2-digit",
-                minute: "2-digit",
-                hour12: true,
-            });
-
-            if (contactEmails.length > 0) {
-                const subject = `${domainEmoji[domain] || "🆘"} VOICE SOS: ${domain} Emergency — ${severity}`;
-                const html = `
-                    <div style="font-family: Arial, sans-serif; max-width: 600px;">
-                        <div style="background: #dc2626; color: white; padding: 20px; border-radius: 8px 8px 0 0;">
-                            <h2 style="margin:0;">${domainEmoji[domain]} Voice SOS Emergency Alert</h2>
-                        </div>
-                        <div style="padding: 20px; border: 1px solid #e5e7eb; border-top: none; border-radius: 0 0 8px 8px;">
-                            <table style="width:100%; border-collapse:collapse;">
-                                <tr><td style="padding:8px; font-weight:bold;">Domain:</td><td style="padding:8px;">${domain}</td></tr>
-                                <tr><td style="padding:8px; font-weight:bold;">Severity:</td><td style="padding:8px; color:${severity === 'Critical' ? '#dc2626' : '#f59e0b'};">${severity}</td></tr>
-                                <tr><td style="padding:8px; font-weight:bold;">Transcript:</td><td style="padding:8px;"><em>"${transcript || 'N/A'}"</em></td></tr>
-                                <tr><td style="padding:8px; font-weight:bold;">Confidence:</td><td style="padding:8px;">${(confidence * 100).toFixed(0)}%</td></tr>
-                                <tr><td style="padding:8px; font-weight:bold;">Time:</td><td style="padding:8px;">${timeStr}</td></tr>
-                                <tr><td style="padding:8px; font-weight:bold;">Location:</td><td style="padding:8px;"><a href="${mapLink}">View on Google Maps</a></td></tr>
-                            </table>
-                            <p style="margin-top:16px; color:#6b7280; font-size:12px;">Source: Hands-Free Voice SOS Module | Device: ${did}</p>
-                        </div>
-                    </div>
-                `;
-                await sendEmail(contactEmails.join(","), subject, `Voice SOS: ${domain} at ${location}. Map: ${mapLink}`, html);
-            }
-
-            // SMS for Critical alerts
-            if (twilioClient && severity === "Critical") {
-                const contactPhones = contacts.map((c) => c.phone).filter(Boolean);
-                const defaultPhone = process.env.DEFAULT_ALERT_PHONE;
-                if (defaultPhone && !contactPhones.includes(defaultPhone)) {
-                    contactPhones.push(defaultPhone);
+        if (process.env.NODE_ENV !== 'test') {
+            try {
+                const contacts = await Contact.find();
+                const contactEmails = contacts.map((c) => c.email).filter(Boolean);
+                const defaultEmail = process.env.DEFAULT_ALERT_EMAIL;
+                if (defaultEmail && !contactEmails.includes(defaultEmail)) {
+                    contactEmails.push(defaultEmail);
                 }
 
-                const smsBody = `${domainEmoji[domain]} APADS VOICE SOS: ${domain} emergency (${severity}). "${transcript || 'N/A'}". Map: ${mapLink}`;
+                const domainEmoji = { Medical: "🚑", Fire: "🔥", Police: "🚔" };
+                const mapLink = `https://www.google.com/maps?q=${coordinates.lat},${coordinates.lng}`;
+                const timeStr = new Date().toLocaleTimeString("en-US", {
+                    hour: "2-digit",
+                    minute: "2-digit",
+                    hour12: true,
+                });
 
-                // Send all SMS in parallel for better performance
-                await Promise.allSettled(
-                    contactPhones.map(phone =>
-                        twilioClient.messages.create({
-                            body: smsBody,
-                            from: process.env.TWILIO_PHONE,
-                            to: phone,
-                        })
-                    )
-                );
+                if (contactEmails.length > 0) {
+                    const subject = `${domainEmoji[domain] || "🆘"} VOICE SOS: ${domain} Emergency — ${severity}`;
+                    const html = `
+                        <div style="font-family: Arial, sans-serif; max-width: 600px;">
+                            <div style="background: #dc2626; color: white; padding: 20px; border-radius: 8px 8px 0 0;">
+                                <h2 style="margin:0;">${domainEmoji[domain]} Voice SOS Emergency Alert</h2>
+                            </div>
+                            <div style="padding: 20px; border: 1px solid #e5e7eb; border-top: none; border-radius: 0 0 8px 8px;">
+                                <table style="width:100%; border-collapse:collapse;">
+                                    <tr><td style="padding:8px; font-weight:bold;">Domain:</td><td style="padding:8px;">${domain}</td></tr>
+                                    <tr><td style="padding:8px; font-weight:bold;">Severity:</td><td style="padding:8px; color:${severity === 'Critical' ? '#dc2626' : '#f59e0b'};">${severity}</td></tr>
+                                    <tr><td style="padding:8px; font-weight:bold;">Transcript:</td><td style="padding:8px;"><em>"${transcript || 'N/A'}"</em></td></tr>
+                                    <tr><td style="padding:8px; font-weight:bold;">Confidence:</td><td style="padding:8px;">${(confidence * 100).toFixed(0)}%</td></tr>
+                                    <tr><td style="padding:8px; font-weight:bold;">Time:</td><td style="padding:8px;">${timeStr}</td></tr>
+                                    <tr><td style="padding:8px; font-weight:bold;">Location:</td><td style="padding:8px;"><a href="${mapLink}">View on Google Maps</a></td></tr>
+                                </table>
+                                <p style="margin-top:16px; color:#6b7280; font-size:12px;">Source: Hands-Free Voice SOS Module | Device: ${did}</p>
+                            </div>
+                        </div>
+                    `;
+                    await sendEmail(contactEmails.join(","), subject, `Voice SOS: ${domain} at ${location}. Map: ${mapLink}`, html);
+                }
+
+                // SMS for Critical alerts
+                if (twilioClient && severity === "Critical") {
+                    const contactPhones = contacts.map((c) => c.phone).filter(Boolean);
+                    const defaultPhone = process.env.DEFAULT_ALERT_PHONE;
+                    if (defaultPhone && !contactPhones.includes(defaultPhone)) {
+                        contactPhones.push(defaultPhone);
+                    }
+
+                    const smsBody = `${domainEmoji[domain]} APADS VOICE SOS: ${domain} emergency (${severity}). "${transcript || 'N/A'}". Map: ${mapLink}`;
+
+                    // Send all SMS in parallel for better performance
+                    await Promise.allSettled(
+                        contactPhones.map(phone =>
+                            twilioClient.messages.create({
+                                body: smsBody,
+                                from: process.env.TWILIO_PHONE,
+                                to: phone,
+                            })
+                        )
+                    );
+                }
+
+                // Mark alerts as sent
+                sosAlert.alertsSent = true;
+                await sosAlert.save();
+            } catch (alertError) {
+                console.error("⚠️ Failed to send SOS emergency alerts:", alertError.message);
             }
-
-            // Mark alerts as sent
-            sosAlert.alertsSent = true;
-            await sosAlert.save();
-        } catch (alertError) {
-            console.error("⚠️ Failed to send SOS emergency alerts:", alertError.message);
         }
 
         res.status(201).json({

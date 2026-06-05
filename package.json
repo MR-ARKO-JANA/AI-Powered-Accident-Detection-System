@@ -6,7 +6,7 @@
     "start": "npm run dev",
     "start:backend": "npm start --prefix backend",
     "start:frontend": "npm start --prefix frontend/my-app",
-    "start:ai": "cd ai-service && ..\\.venv\\Scripts\\python.exe app.py",
+    "start:ai": "cd ai-service && venv\\Scripts\\python.exe app.py",
     "dev": "npx concurrently --names \"BACKEND,FRONTEND,AI-SVC\" --prefix-colors \"yellow,blue,magenta\" \"npm run start:backend\" \"npm run start:frontend\" \"npm run start:ai\""
   }
 }
