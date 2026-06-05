@@ -12,15 +12,15 @@ const accidentSchema = new mongoose.Schema({
     },
     location: {
         type: String,
-        require: true
+        required: true
     },
     time: {
         type: String,
-        require: true
+        required: true
     },
     coordinates: {
-        lat: { type: Number, require: true },
-        lng: { type: Number, require: true }
+        lat: { type: Number, required: true },
+        lng: { type: Number, required: true }
     },
     alertSent: {
         type: Boolean,
@@ -36,5 +36,10 @@ const accidentSchema = new mongoose.Schema({
     }
 
 }, { timestamps: true });
+
+// Index for dashboard queries (newest first)
+accidentSchema.index({ createdAt: -1 });
+// Index for camera-based filtering
+accidentSchema.index({ camId: 1, createdAt: -1 });
 
 module.exports = mongoose.model('Accident', accidentSchema);
