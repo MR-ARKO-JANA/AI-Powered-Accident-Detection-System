@@ -16,6 +16,14 @@ const getContacts = async (req, res) => {
 const addContact = async (req, res) => {
     try {
         const { name, role, phone, email } = req.body;
+
+        if (!name || !role || !phone) {
+            return res.status(400).json({
+                success: false,
+                message: "Missing required fields: name, role, phone"
+            });
+        }
+
         const contact = await Contact.create({ name, role, phone, email });
         res.status(201).json({ success: true, data: contact });
     } catch (error) {
@@ -27,7 +35,10 @@ const addContact = async (req, res) => {
 // @route   DELETE /api/contacts/:id
 const deleteContact = async (req, res) => {
     try {
-        await Contact.findByIdAndDelete(req.params.id);
+        const contact = await Contact.findByIdAndDelete(req.params.id);
+        if (!contact) {
+            return res.status(404).json({ success: false, message: "Contact not found" });
+        }
         res.json({ success: true, message: "Contact removed" });
     } catch (error) {
         res.status(500).json({ success: false, message: error.message });
