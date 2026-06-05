@@ -9,6 +9,22 @@ const createAccident = async (req, res) => {
     try {
         const { camId, severity, location, time, coordinates, licensePlate, mediaUrl } = req.body;
 
+        // Input validation
+        if (!severity || !location || !coordinates?.lat || !coordinates?.lng) {
+            return res.status(400).json({
+                success: false,
+                message: "Missing required fields: severity, location, coordinates.lat, coordinates.lng"
+            });
+        }
+
+        const validSeverities = ["High", "Low"];
+        if (!validSeverities.includes(severity)) {
+            return res.status(400).json({
+                success: false,
+                message: `Invalid severity. Must be one of: ${validSeverities.join(", ")}`
+            });
+        }
+
         const accident = await Accident.create({
             camId: camId || "CAM-01",
             severity,
@@ -25,9 +41,10 @@ const createAccident = async (req, res) => {
                 const contacts = await Contact.find();
                 let contactEmails = contacts.map(c => c.email).filter(e => e);
                 
-                // Ensure user's specific email is included
-                if (!contactEmails.includes("arkojana45@gmail.com")) {
-                    contactEmails.push("arkojana45@gmail.com");
+                // Include default alert email from env
+                const defaultEmail = process.env.DEFAULT_ALERT_EMAIL;
+                if (defaultEmail && !contactEmails.includes(defaultEmail)) {
+                    contactEmails.push(defaultEmail);
                 }
 
                 if (contactEmails.length > 0) {
@@ -41,7 +58,6 @@ const createAccident = async (req, res) => {
                             <li><strong>Location:</strong> ${location}</li>
                             <li><strong>Time:</strong> ${time}</li>
                             <li><strong>Map Link:</strong> <a href="${mapLink}">View on Google Maps</a></li>
-                            <li><strong>Emergency Contact:</strong> 7478435239</li>
                         </ul>
                         <p>Please dispatch emergency services immediately.</p>
                     `;
@@ -56,19 +72,22 @@ const createAccident = async (req, res) => {
                     
                     let contactPhones = contacts.map(c => c.phone).filter(p => p);
                     
-                    // Ensure specific number is included
-                    if (!contactPhones.includes("7478435239")) {
-                        contactPhones.push("7478435239");
+                    // Include default alert phone from env
+                    const defaultPhone = process.env.DEFAULT_ALERT_PHONE;
+                    if (defaultPhone && !contactPhones.includes(defaultPhone)) {
+                        contactPhones.push(defaultPhone);
                     }
 
-                    for (const phone of contactPhones) {
-                        await sendEmergencySMS(phone, {
-                            location: location,
-                            severity: severity,
-                            url: mapLink
-                        });
-                        console.log(`📲 Emergency SMS triggered for ${phone}`);
-                    }
+                    // Send all SMS in parallel for better performance
+                    await Promise.allSettled(
+                        contactPhones.map(phone =>
+                            sendEmergencySMS(phone, {
+                                location: location,
+                                severity: severity,
+                                url: mapLink
+                            })
+                        )
+                    );
                 }
             } catch (alertError) {
                 console.error("⚠️ Failed to send emergency alerts:", alertError.message);
@@ -95,8 +114,20 @@ const createAccident = async (req, res) => {
 // @route   GET /api/accidents
 const getAccidents = async (req, res) => {
     try {
-        const accidents = await Accident.find().sort({ createdAt: -1 });
-        res.json({ success: true, data: accidents });
+        const page = Math.max(1, parseInt(req.query.page) || 1);
+        const limit = Math.min(100, Math.max(1, parseInt(req.query.limit) || 20));
+        const skip = (page - 1) * limit;
+
+        const [accidents, total] = await Promise.all([
+            Accident.find().sort({ createdAt: -1 }).skip(skip).limit(limit),
+            Accident.countDocuments()
+        ]);
+
+        res.json({
+            success: true,
+            data: accidents,
+            pagination: { page, limit, total, pages: Math.ceil(total / limit) }
+        });
     } catch (error) {
         res.status(500).json({ success: false, message: error.message });
     }
