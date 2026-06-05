@@ -67,4 +67,9 @@ const sosAlertSchema = new mongoose.Schema({
     },
 }, { timestamps: true });
 
+// Indexes for dashboard and device-based queries
+sosAlertSchema.index({ createdAt: -1 });
+sosAlertSchema.index({ deviceId: 1, createdAt: -1 });
+sosAlertSchema.index({ cancelled: 1 });
+
 module.exports = mongoose.model("SosAlert", sosAlertSchema);
