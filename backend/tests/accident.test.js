@@ -49,11 +49,15 @@ describe('Accident API Endpoints', () => {
         expect(res.body.data.mediaUrl).toEqual("http://test.com/image.jpg");
     });
 
-    it('should fetch all accident records', async () => {
+    it('should fetch all accident records with pagination', async () => {
         const res = await request(app).get('/api/accidents');
         expect(res.statusCode).toEqual(200);
         expect(res.body.success).toBeTruthy();
         expect(Array.isArray(res.body.data)).toBeTruthy();
         expect(res.body.data.length).toBeGreaterThanOrEqual(1);
+        // Verify pagination structure
+        expect(res.body.pagination).toBeDefined();
+        expect(res.body.pagination.page).toEqual(1);
+        expect(res.body.pagination.total).toBeGreaterThanOrEqual(1);
     });
 });
