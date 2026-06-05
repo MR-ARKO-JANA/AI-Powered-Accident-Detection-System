@@ -1,6 +1,14 @@
 const twilio = require('twilio');
 
-const client = new twilio(process.env.TWILIO_SID, process.env.TWILIO_AUTH_TOKEN);
+// Lazy initialization to avoid crash when env vars are missing
+let client = null;
+
+const getClient = () => {
+    if (!client && process.env.TWILIO_SID && process.env.TWILIO_AUTH_TOKEN) {
+        client = new twilio(process.env.TWILIO_SID, process.env.TWILIO_AUTH_TOKEN);
+    }
+    return client;
+};
 
 const sendEmergencySMS = async (to, accidentDetails) => {
     // Only send if Twilio is configured
@@ -10,7 +18,7 @@ const sendEmergencySMS = async (to, accidentDetails) => {
     }
 
     try {
-        await client.messages.create({
+        await getClient().messages.create({
             body: `🚨 EMERGENCY: Accident detected at ${accidentDetails.location}. Severity: ${accidentDetails.severity}. Vehicle: ${accidentDetails.licensePlate || 'Unknown'}. View Map: ${accidentDetails.url}`,
             from: process.env.TWILIO_PHONE,
             to: to
