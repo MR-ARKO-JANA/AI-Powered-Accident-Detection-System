@@ -31,3 +31,4 @@
 - Verification check step 29: AI service dependencies verified, easyocr installed, and backend tests passing.
 - Verification check step 30: AI service dependencies verified, easyocr installed, and backend tests passing.
 - Verification check step 31: Resolved double-response bug in auth middleware, and corrected schema require to required syntax.
+- Verification check step 32: Added database indexes to SosAlert and Accident schemas for faster dashboard and camera queries.
