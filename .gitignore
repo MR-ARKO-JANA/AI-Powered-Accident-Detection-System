@@ -20,3 +20,5 @@ __pycache__/
 dry_run.txt
 status.txt
 git_status.txt
+ai-service/temp_frames/
+
