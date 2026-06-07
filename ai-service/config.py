@@ -14,6 +14,7 @@ class Config:
     REDIS_BROKER_URL = os.getenv("REDIS_BROKER_URL", "redis://localhost:6379/0")
     PORT = int(os.getenv("PORT", 5001))
     DEBUG_MODE = os.getenv("DEBUG_MODE", "True").lower() == "true"
+    USE_CELERY = os.getenv("USE_CELERY", "True").lower() == "true"
     
     # Internal paths
     BASE_DIR = os.path.dirname(os.path.abspath(__file__))

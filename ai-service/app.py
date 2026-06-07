@@ -29,8 +29,12 @@ def detect():
     file_path = os.path.join(temp_dir, f"{uuid.uuid4()}.jpg")
     file.save(file_path)
 
-    # Offload processing to Celery background task
-    process_frame_task.delay(file_path)
+    # Offload processing to Celery background task or background thread
+    if Config.USE_CELERY:
+        process_frame_task.delay(file_path)
+    else:
+        import threading
+        threading.Thread(target=process_frame_task, args=(file_path,), daemon=True).start()
 
     # Return immediately so the camera feed doesn't freeze
     return jsonify({
@@ -39,7 +43,7 @@ def detect():
     }), 202
 
 if __name__ == '__main__':
-    app.run(debug=Config.DEBUG_MODE, port=Config.PORT)
+    app.run(debug=Config.DEBUG_MODE, host='0.0.0.0', port=Config.PORT)
 
 
 
