@@ -2,7 +2,7 @@ import axios from "axios";
 
 // set the base url to my node.js backend 
 const API = axios.create({
-    baseURL: 'http://localhost:5000/api',
+    baseURL: process.env.REACT_APP_API_URL ? `${process.env.REACT_APP_API_URL}/api` : 'http://localhost:5000/api',
 });
 
 //Automatically attach the jwt token to requests if the user is logged in

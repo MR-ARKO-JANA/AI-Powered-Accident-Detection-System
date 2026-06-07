@@ -53,7 +53,7 @@ const CameraFeed = () => {
 
     // Socket.io for global real-time alerts
     useEffect(() => {
-        const socket = io('http://localhost:5000');
+        const socket = io(process.env.REACT_APP_API_URL || 'http://localhost:5000');
 
         socket.on('accidentDetected', (data) => {
             // If an accident is detected (anywhere), show it on the HUD and play buzzer
@@ -102,7 +102,8 @@ const CameraFeed = () => {
                 setIsDetecting(true);
                 setIsProcessing(true);
                 // Call AI Flask Service
-                const aiResponse = await axios.post('http://localhost:5001/detect', formData);
+                const aiServiceUrl = process.env.REACT_APP_AI_SERVICE_URL || 'http://localhost:5001';
+                const aiResponse = await axios.post(`${aiServiceUrl}/detect`, formData);
                 setConfidence(aiResponse.data.confidence);
                 
                 if (aiResponse.data.accident) {
@@ -204,7 +205,8 @@ const CameraFeed = () => {
                         time: new Date().toLocaleTimeString(),
                         coordinates: { lat: 22.5726, lng: 88.3639 }
                     };
-                    axios.post('http://localhost:5000/api/accidents', fakeData)
+                    const backendUrl = process.env.REACT_APP_API_URL || 'http://localhost:5000';
+                    axios.post(`${backendUrl}/api/accidents`, fakeData)
                         .then(() => alert("✅ Test alert sent! Check your Dashboard and Email."))
                         .catch(err => alert("❌ Test failed: " + err.message));
                 }}
