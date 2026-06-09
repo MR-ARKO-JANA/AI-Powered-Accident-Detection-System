@@ -1,16 +1,19 @@
-import React, { useState, useContext } from 'react';
+import React, { useState, useEffect, useContext } from 'react';
 import { Link, useLocation } from "react-router-dom";
 import { AuthContext } from "../context/AuthContext";
+import NotificationCenter from "./NotificationCenter";
 
 function Navbar() {
     const location = useLocation();
-    const { user } = useContext(AuthContext);
+    const { user, logout } = useContext(AuthContext);
     const [hoveredLink, setHoveredLink] = useState(null);
+    const [isDropdownOpen, setIsDropdownOpen] = useState(false);
 
     // Filter links based on role
     const navLinks = [
         { path: '/dashboard', label: 'Dashboard', icon: '◈' },
         { path: '/reports', label: 'Reports', icon: '◎' },
+        { path: '/analytics', label: 'Analytics', icon: '⬘' },
         // Only show Admin for 'admin' role
         ...(user?.details?.role === 'admin' ? [{ path: '/admin', label: 'Admin', icon: '⬡' }] : []),
     ];
@@ -18,6 +21,19 @@ function Navbar() {
     const isActive = (path) => location.pathname === path;
 
     const userInitial = user?.details?.name ? user.details.name[0].toUpperCase() : 'A';
+
+    // Click away listener to close dropdown when clicking outside
+    useEffect(() => {
+        if (!isDropdownOpen) return;
+        const closeDropdown = () => setIsDropdownOpen(false);
+        document.addEventListener('click', closeDropdown);
+        return () => document.removeEventListener('click', closeDropdown);
+    }, [isDropdownOpen]);
+
+    const handleAvatarClick = (e) => {
+        e.stopPropagation();
+        setIsDropdownOpen(!isDropdownOpen);
+    };
 
     return (
         <header style={styles.container}>
@@ -33,47 +49,82 @@ function Navbar() {
                 </div>
             </Link>
 
-            {/* Middle - Navigation Links */}
-            <nav style={styles.nav}>
-                {navLinks.map((link) => (
-                    <Link
-                        key={link.path}
-                        to={link.path}
-                        style={{
-                            ...styles.navLink,
-                            ...(isActive(link.path) ? styles.navLinkActive : {}),
-                            ...(hoveredLink === link.path && !isActive(link.path) ? styles.navLinkHover : {}),
-                        }}
-                        onMouseEnter={() => setHoveredLink(link.path)}
-                        onMouseLeave={() => setHoveredLink(null)}
-                    >
-                        <span style={styles.navIcon}>{link.icon}</span>
-                        {link.label}
-                        {isActive(link.path) && <div style={styles.activeIndicator}></div>}
-                    </Link>
-                ))}
-            </nav>
+            {/* Middle - Navigation Links (Only shown when user is logged in) */}
+            {user && (
+                <nav style={styles.nav}>
+                    {navLinks.map((link) => (
+                        <Link
+                            key={link.path}
+                            to={link.path}
+                            style={{
+                                ...styles.navLink,
+                                ...(isActive(link.path) ? styles.navLinkActive : {}),
+                                ...(hoveredLink === link.path && !isActive(link.path) ? styles.navLinkHover : {}),
+                            }}
+                            onMouseEnter={() => setHoveredLink(link.path)}
+                            onMouseLeave={() => setHoveredLink(null)}
+                        >
+                            <span style={styles.navIcon}>{link.icon}</span>
+                            {link.label}
+                            {isActive(link.path) && <div style={styles.activeIndicator}></div>}
+                        </Link>
+                    ))}
+                </nav>
+            )}
 
-            {/* Right - Status & Profile */}
-            <div style={styles.rightSection}>
-                {/* System Status Badge */}
-                <div style={styles.statusBadge}>
-                    <span style={styles.statusDot}></span>
-                    <span style={styles.statusText}>System Active</span>
-                </div>
+            {/* Right - Status & Profile (Only shown when user is logged in) */}
+            {user && (
+                <div style={styles.rightSection}>
+                    {/* System Status Badge */}
+                    <div style={styles.statusBadge}>
+                        <span style={styles.statusDot}></span>
+                        <span style={styles.statusText}>System Active</span>
+                    </div>
 
-                {/* Profile Avatar */}
-                <div
-                    style={{
-                        ...styles.avatar,
-                        ...(hoveredLink === 'profile' ? styles.avatarHover : {}),
-                    }}
-                    onMouseEnter={() => setHoveredLink('profile')}
-                    onMouseLeave={() => setHoveredLink(null)}
-                >
-                    <span style={styles.avatarText}>{userInitial}</span>
+                    {/* Notification Center */}
+                    <NotificationCenter />
+
+                    {/* Profile Avatar and Dropdown Container */}
+                    <div style={styles.profileWrapper}>
+                        <div
+                            style={{
+                                ...styles.avatar,
+                                ...(hoveredLink === 'profile' ? styles.avatarHover : {}),
+                            }}
+                            onMouseEnter={() => setHoveredLink('profile')}
+                            onMouseLeave={() => setHoveredLink(null)}
+                            onClick={handleAvatarClick}
+                        >
+                            <span style={styles.avatarText}>{userInitial}</span>
+                        </div>
+
+                        {isDropdownOpen && (
+                            <div style={styles.dropdown} onClick={(e) => e.stopPropagation()}>
+                                <div style={styles.dropdownHeader}>
+                                    <div style={styles.userName}>{user.details?.name || 'Operator'}</div>
+                                    <div style={styles.userEmail}>{user.details?.email || ''}</div>
+                                    <div style={styles.userRoleBadge}>{user.details?.role || 'User'}</div>
+                                </div>
+                                <div style={styles.dropdownDivider}></div>
+                                <button
+                                    style={{
+                                        ...styles.logoutButton,
+                                        ...(hoveredLink === 'logout' ? styles.logoutButtonHover : {})
+                                    }}
+                                    onMouseEnter={() => setHoveredLink('logout')}
+                                    onMouseLeave={() => setHoveredLink(null)}
+                                    onClick={() => {
+                                        logout();
+                                        setIsDropdownOpen(false);
+                                    }}
+                                >
+                                    <span style={styles.logoutIcon}>⎋</span> Log Out
+                                </button>
+                            </div>
+                        )}
+                    </div>
                 </div>
-            </div>
+            )}
         </header>
     );
 }
@@ -235,6 +286,10 @@ const styles = {
         letterSpacing: '0.5px',
     },
 
+    profileWrapper: {
+        position: 'relative',
+    },
+
     avatar: {
         width: '38px',
         height: '38px',
@@ -258,6 +313,84 @@ const styles = {
         fontSize: '15px',
         fontWeight: 700,
         color: 'white',
+    },
+
+    dropdown: {
+        position: 'absolute',
+        top: '48px',
+        right: 0,
+        width: '220px',
+        background: 'rgba(15, 23, 42, 0.95)',
+        backdropFilter: 'blur(20px)',
+        border: '1px solid var(--border-glass)',
+        borderRadius: 'var(--radius-lg)',
+        boxShadow: '0 10px 25px -5px rgba(0, 0, 0, 0.5), 0 8px 10px -6px rgba(0, 0, 0, 0.5)',
+        padding: '16px 0 8px 0',
+        zIndex: 1001,
+        display: 'flex',
+        flexDirection: 'column',
+    },
+
+    dropdownHeader: {
+        padding: '0 16px 12px 16px',
+        display: 'flex',
+        flexDirection: 'column',
+        gap: '4px',
+    },
+
+    userName: {
+        fontSize: '14px',
+        fontWeight: 600,
+        color: 'var(--text-primary)',
+    },
+
+    userEmail: {
+        fontSize: '12px',
+        color: 'var(--text-muted)',
+        wordBreak: 'break-all',
+    },
+
+    userRoleBadge: {
+        alignSelf: 'flex-start',
+        fontSize: '10px',
+        fontWeight: 700,
+        textTransform: 'uppercase',
+        letterSpacing: '0.5px',
+        color: 'var(--accent-cyan)',
+        background: 'rgba(6, 182, 212, 0.1)',
+        padding: '2px 8px',
+        borderRadius: 'var(--radius-full)',
+        marginTop: '6px',
+    },
+
+    dropdownDivider: {
+        height: '1px',
+        background: 'var(--border-glass)',
+        margin: '8px 0',
+    },
+
+    logoutButton: {
+        width: '100%',
+        background: 'none',
+        border: 'none',
+        padding: '10px 16px',
+        color: '#f87171',
+        fontSize: '14px',
+        fontWeight: 500,
+        textAlign: 'left',
+        cursor: 'pointer',
+        display: 'flex',
+        alignItems: 'center',
+        gap: '8px',
+        transition: 'all 0.2s ease',
+    },
+
+    logoutButtonHover: {
+        background: 'rgba(239, 68, 68, 0.08)',
+    },
+
+    logoutIcon: {
+        fontSize: '16px',
     },
 };
 
