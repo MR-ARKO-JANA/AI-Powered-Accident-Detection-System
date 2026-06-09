@@ -15,6 +15,9 @@ class Config:
     PORT = int(os.getenv("PORT", 5001))
     DEBUG_MODE = os.getenv("DEBUG_MODE", "True").lower() == "true"
     USE_CELERY = os.getenv("USE_CELERY", "True").lower() == "true"
+    CAM_LAT = float(os.getenv("CAM_LAT", 22.5726))
+    CAM_LNG = float(os.getenv("CAM_LNG", 88.3639))
+    API_SECRET_KEY = os.getenv("API_SECRET_KEY", "apads_ai_secret_api_key_2026")
     
     # Internal paths
     BASE_DIR = os.path.dirname(os.path.abspath(__file__))

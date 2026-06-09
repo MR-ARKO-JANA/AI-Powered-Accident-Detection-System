@@ -41,3 +41,4 @@
 - Verification check step 39: Updated accident and SOS test assertions to match pagination response format.
 - Verification check step 40: Configured Docker health checks and restart policies for all services, and optimized the start:ai script.
 - Verification check step 41: Added AI service cloud deployment exclusions and offline notification cooldown logic.
+- Verification check step 42: Configured AI service local and cloud environment configuration variables.
