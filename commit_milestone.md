@@ -57,3 +57,4 @@
 - Verification check step 55: Configured backend Server.js with AI proxy, rate limiting, and static serving.
 - Verification check step 56: Refactored backend accident suite tests for paginated schema structures.
 - Verification check step 57: Implemented comprehensive backend integration tests in apads.test.js.
+- Verification check step 58: Created automated Google Cloud Run PowerShell deployment script.

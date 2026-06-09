@@ -74,12 +74,13 @@ Push-Location "$WorkspaceRoot\backend"
 gcloud builds submit --tag $BackendImageTag
 Pop-Location
 
-# Deploy Backend to Cloud Run
+# Deploy Backend to Cloud Run (initial deploy — AI_SERVICE_URL will be updated after AI service is deployed)
 Write-Host "[*] Deploying backend service to Google Cloud Run..." -ForegroundColor Yellow
 gcloud run deploy apads-backend `
     --image $BackendImageTag `
     --platform managed `
     --region $Region `
+    --port 5000 `
     --allow-unauthenticated `
     --set-env-vars MONGO_URI="$MongoUri",JWT_SECRET="production_jwt_secret_key_apads"
 
@@ -90,23 +91,37 @@ Write-Host "[OK] Backend deployed successfully! URL: $BackendUrl" -ForegroundCol
 Write-Host "`n[Step 2/3] Building & Deploying AI Service..." -ForegroundColor Cyan
 $AiImageTag = "$Region-docker.pkg.dev/$ProjectId/$RepoName/ai-service:latest"
 
-# Run Cloud Build for AI Service
-Write-Host "[*] Submitting AI service container to Google Cloud Build..." -ForegroundColor Yellow
+# Run Cloud Build for AI Service (larger timeout for 533MB model)
+Write-Host "[*] Submitting AI service container to Google Cloud Build (this may take 10-15 min due to model size)..." -ForegroundColor Yellow
 Push-Location "$WorkspaceRoot\ai-service"
-gcloud builds submit --tag $AiImageTag
+gcloud builds submit --tag $AiImageTag --timeout=1200
 Pop-Location
 
-# Deploy AI Service to Cloud Run (Pointed to Backend URL and with USE_CELERY=False)
+# Deploy AI Service to Cloud Run with adequate resources for TensorFlow
 Write-Host "[*] Deploying AI service to Google Cloud Run..." -ForegroundColor Yellow
 gcloud run deploy apads-ai-service `
     --image $AiImageTag `
     --platform managed `
     --region $Region `
+    --port 5001 `
+    --memory 2Gi `
+    --cpu 2 `
     --allow-unauthenticated `
     --set-env-vars USE_CELERY=False,BACKEND_URL="$BackendUrl/api/accidents",WEBSOCKET_URL="$BackendUrl"
 
 $AiServiceUrl = (gcloud run services describe apads-ai-service --platform managed --region $Region --format="value(status.url)")
 Write-Host "[OK] AI Service deployed successfully! URL: $AiServiceUrl" -ForegroundColor Green
+
+# Re-deploy Backend with the now-known AI Service URL
+Write-Host "`n[*] Updating backend with AI Service URL..." -ForegroundColor Yellow
+gcloud run deploy apads-backend `
+    --image $BackendImageTag `
+    --platform managed `
+    --region $Region `
+    --port 5000 `
+    --allow-unauthenticated `
+    --set-env-vars MONGO_URI="$MongoUri",JWT_SECRET="production_jwt_secret_key_apads",AI_SERVICE_URL="$AiServiceUrl"
+Write-Host "[OK] Backend updated with AI_SERVICE_URL=$AiServiceUrl" -ForegroundColor Green
 
 # 6. Build and Deploy React Frontend Service
 Write-Host "`n[Step 3/3] Building & Deploying React Frontend..." -ForegroundColor Cyan
@@ -146,6 +161,7 @@ gcloud run deploy apads-frontend `
     --image $FrontendImageTag `
     --platform managed `
     --region $Region `
+    --port 3000 `
     --allow-unauthenticated
 
 $FrontendUrl = (gcloud run services describe apads-frontend --platform managed --region $Region --format="value(status.url)")
@@ -158,3 +174,16 @@ Write-Host "Node.js Backend URL     : $BackendUrl" -ForegroundColor Cyan
 Write-Host "Flask AI Service URL    : $AiServiceUrl" -ForegroundColor Cyan
 Write-Host "=================================================================" -ForegroundColor Green
 Write-Host "Make sure to allow webcam access in your browser when testing the dashboard." -ForegroundColor Yellow
+
+# Health Check Verification
+Write-Host "`n[*] Running health checks..." -ForegroundColor Yellow
+try {
+    $statusCheck = Invoke-RestMethod -Uri "$BackendUrl/api/status" -Method Get -ErrorAction Stop
+    Write-Host "[OK] Backend health check passed: $($statusCheck.message)" -ForegroundColor Green
+} catch {
+    Write-Host "[!] Backend health check failed: $($_.Exception.Message)" -ForegroundColor Red
+}
+Write-Host "`nDeployment URLs saved. You can check Cloud Run logs with:" -ForegroundColor Cyan
+Write-Host "  gcloud run services logs read apads-backend --region $Region" -ForegroundColor White
+Write-Host "  gcloud run services logs read apads-ai-service --region $Region" -ForegroundColor White
+Write-Host "  gcloud run services logs read apads-frontend --region $Region" -ForegroundColor White
