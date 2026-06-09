@@ -94,7 +94,8 @@ def process_frame_task(image_path):
             print("☁️ Uploading image to media server...")
             with open(image_path, 'rb') as f:
                 files = {'frame': f}
-                up_resp = requests.post(Config.UPLOAD_URL, files=files, timeout=5)
+                headers = {"X-API-Key": Config.API_SECRET_KEY}
+                up_resp = requests.post(Config.UPLOAD_URL, files=files, headers=headers, timeout=5)
                 if up_resp.status_code == 200:
                     media_url = up_resp.json().get('url', '')
                     print(f"✅ Image uploaded: {media_url}")
@@ -103,12 +104,12 @@ def process_frame_task(image_path):
 
         payload = {
             "camId": Config.CAM_ID,
-            "severity": "High" if confidence > 0.8 else "Low",
+            "severity": "Critical" if confidence > 0.8 else "High" if confidence > 0.5 else "Medium",
             "location": Config.LOCATION,
             "time": datetime.datetime.now().strftime("%I:%M %p"),
             "coordinates": {
-                "lat": 22.5726,
-                "lng": 88.3639
+                "lat": Config.CAM_LAT,
+                "lng": Config.CAM_LNG
             },
             "licensePlate": license_plate,
             "mediaUrl": media_url
@@ -121,7 +122,8 @@ def process_frame_task(image_path):
             print(f"🚀 Pushed real-time event via Celery!")
 
         try:
-            response = requests.post(Config.BACKEND_URL, json=payload, timeout=3)
+            headers = {"X-API-Key": Config.API_SECRET_KEY}
+            response = requests.post(Config.BACKEND_URL, json=payload, headers=headers, timeout=3)
             if response.status_code == 201:
                 print(f"✅ Accident saved to DB from Celery!")
         except Exception as e:
