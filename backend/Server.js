@@ -57,6 +57,9 @@ app.use(helmet()); // HTTP security headers
 app.use(cors({ origin: corsOrigins })); // allow cross origin requests 
 app.use(express.json({ limit: "1mb" })); // Prevent large payload DoS
 
+const { apiLimiter } = require('./middleware/rateLimiter');
+app.use('/api', apiLimiter);
+
 // Serve static files (uploaded images)
 app.use('/uploads', express.static(path.join(__dirname, 'uploads')));
 
@@ -66,6 +69,7 @@ app.use('/api/accidents', require('./routes/accidentRoutes'));
 app.use('/api/sos', require('./routes/sosRoutes'));
 app.use('/api/contacts', require('./routes/contactRoutes'));
 app.use('/api/upload', require('./routes/uploadRoutes'));
+app.use('/api/stats', require('./routes/statsRoutes'));
 
 app.get("/api/status", (req, res) => {
     res.json({
@@ -74,6 +78,49 @@ app.get("/api/status", (req, res) => {
         timestamp: new Date()
     })
 })
+
+// AI Service proxy endpoint
+const multer = require("multer");
+const upload = multer();
+app.post('/api/ai-detect', upload.single('frame'), async (req, res, next) => {
+    try {
+        if (!req.file) {
+            return res.status(400).json({ error: 'No frame file uploaded' });
+        }
+
+        const formData = new FormData();
+        const blob = new Blob([req.file.buffer], { type: req.file.mimetype });
+        formData.append('frame', blob, req.file.originalname);
+
+        const AI_SERVICE_URL = process.env.AI_SERVICE_URL || 'http://localhost:5001';
+        const aiResponse = await fetch(`${AI_SERVICE_URL}/detect`, {
+            method: 'POST',
+            body: formData
+        });
+
+        if (!aiResponse.ok) {
+            const errText = await aiResponse.text();
+            throw new Error(`AI service responded with status ${aiResponse.status}: ${errText}`);
+        }
+
+        const data = await aiResponse.json();
+        res.json(data);
+    } catch (error) {
+        console.error("Proxy error to AI service:", error.message);
+        next(error);
+    }
+});
+
+// Serve static frontend build
+app.use(express.static(path.join(__dirname, "../frontend/my-app/build")));
+
+// Serve index.html for all other client routes (to support client routing)
+app.get("*all", (req, res, next) => {
+    if (req.path.startsWith('/api') || req.path.startsWith('/uploads')) {
+        return next();
+    }
+    res.sendFile(path.join(__dirname, "../frontend/my-app/build", "index.html"));
+});
 
 // Centralized error handler (must be AFTER all routes)
 app.use(errorHandler);
