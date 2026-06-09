@@ -205,7 +205,9 @@ describe('APADS Full System API Endpoints', () => {
         });
 
         it('should fetch all SOS alerts with pagination', async () => {
-            const res = await request(app).get('/api/sos');
+            const res = await request(app)
+                .get('/api/sos')
+                .set('Authorization', `Bearer ${userToken}`);
             expect(res.statusCode).toEqual(200);
             expect(res.body.success).toBeTruthy();
             expect(Array.isArray(res.body.data)).toBeTruthy();
