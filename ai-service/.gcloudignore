@@ -6,3 +6,8 @@ venv/
 __pycache__/
 *.pyc
 dataset/
+temp_frames/
+tests/
+*.db
+fream_collection/
+.pytest_cache/
