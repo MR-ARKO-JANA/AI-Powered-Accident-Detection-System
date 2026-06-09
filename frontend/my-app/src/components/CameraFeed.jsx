@@ -1,8 +1,9 @@
-import React, { useRef, useEffect, useState, useCallback } from 'react';
+import React, { useRef, useEffect, useState, useCallback, useContext } from 'react';
 import axios from 'axios';
-import io from 'socket.io-client';
+import { NotificationContext } from '../context/NotificationContext';
 
 const CameraFeed = () => {
+    const { socket } = useContext(NotificationContext);
     const videoRef = useRef(null);
     const canvasRef = useRef(null);
     const [isConnected, setIsConnected] = useState(false);
@@ -51,19 +52,23 @@ const CameraFeed = () => {
             });
     }, []);
 
-    // Socket.io for global real-time alerts
+    // Socket.io for global real-time alerts (using shared socket)
     useEffect(() => {
-        const socket = io(process.env.REACT_APP_API_URL || 'http://localhost:5000');
+        if (!socket) return;
 
-        socket.on('accidentDetected', (data) => {
+        const handleAccident = (data) => {
             // If an accident is detected (anywhere), show it on the HUD and play buzzer
             setDetectionStatus('accident');
             playBuzzer();
             console.log("🌩️ Global Real-time alert received in HUD");
-        });
+        };
 
-        return () => socket.disconnect();
-    }, []);
+        socket.on('accidentDetected', handleAccident);
+
+        return () => {
+            socket.off('accidentDetected', handleAccident);
+        };
+    }, [socket, playBuzzer]);
 
     // Live timestamp
     useEffect(() => {
@@ -101,9 +106,8 @@ const CameraFeed = () => {
             try {
                 setIsDetecting(true);
                 setIsProcessing(true);
-                // Call AI Flask Service
-                const aiServiceUrl = process.env.REACT_APP_AI_SERVICE_URL || 'http://localhost:5001';
-                const aiResponse = await axios.post(`${aiServiceUrl}/detect`, formData);
+                // Call AI Proxy endpoint on the backend
+                const aiResponse = await axios.post('/api/ai-detect', formData);
                 setConfidence(aiResponse.data.confidence);
                 
                 if (aiResponse.data.accident) {
@@ -196,24 +200,28 @@ const CameraFeed = () => {
                 style={styles.video}
             />
 
-            {/* DEBUG: Simulation Button */}
-            <button 
-                onClick={() => {
-                    const fakeData = {
-                        severity: "High",
-                        location: "Simulated Test Site",
-                        time: new Date().toLocaleTimeString(),
-                        coordinates: { lat: 22.5726, lng: 88.3639 }
-                    };
-                    const backendUrl = process.env.REACT_APP_API_URL || 'http://localhost:5000';
-                    axios.post(`${backendUrl}/api/accidents`, fakeData)
-                        .then(() => alert("✅ Test alert sent! Check your Dashboard and Email."))
-                        .catch(err => alert("❌ Test failed: " + err.message));
-                }}
-                style={styles.debugBtn}
-            >
-                Test Alert
-            </button>
+            {/* DEBUG: Simulation Button (only shown in development) */}
+            {process.env.NODE_ENV === 'development' && (
+                <button 
+                    onClick={() => {
+                        const fakeData = {
+                            severity: "High",
+                            location: "Simulated Test Site",
+                            time: new Date().toISOString(),
+                            coordinates: { lat: 22.5726, lng: 88.3639 }
+                        };
+                        const backendUrl = process.env.REACT_APP_API_URL || '';
+                        axios.post(`${backendUrl}/api/accidents`, fakeData, {
+                            headers: { "X-API-Key": "apads_ai_secret_api_key_2026" }
+                        })
+                            .then(() => alert("✅ Test alert sent! Check your Dashboard and Email."))
+                            .catch(err => alert("❌ Test failed: " + err.message));
+                    }}
+                    style={styles.debugBtn}
+                >
+                    Test Alert
+                </button>
+            )}
         </div>
     );
 };
