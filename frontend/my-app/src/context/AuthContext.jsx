@@ -5,6 +5,7 @@ export const AuthContext = createContext();
 
 export const AuthProvider = ({ children }) => {
     const [user, setUser] = useState(null);
+    const [loading, setLoading] = useState(true);
 
     // Check if user is already logged in when the app loads
     useEffect(() => {
@@ -13,6 +14,7 @@ export const AuthProvider = ({ children }) => {
         if (token && userData) {
             setUser({ isAuthenticated: true, token, details: JSON.parse(userData) });
         }
+        setLoading(false);
     }, []);
 
     // REAL Login Function
@@ -40,7 +42,7 @@ export const AuthProvider = ({ children }) => {
     };
 
     return (
-        <AuthContext.Provider value={{ user, login, logout }}>
+        <AuthContext.Provider value={{ user, loading, login, logout }}>
             {children}
         </AuthContext.Provider>
     );
