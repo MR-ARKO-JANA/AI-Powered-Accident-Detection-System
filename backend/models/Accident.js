@@ -8,19 +8,24 @@ const accidentSchema = new mongoose.Schema({
     severity: {
         type: String,
         required: true,
-        enum: ['High', 'Low']
+        enum: ['Critical', 'High', 'Medium', 'Low']
     },
     location: {
         type: String,
         required: true
     },
     time: {
-        type: String,
-        required: true
+        type: Date,
+        default: Date.now
     },
     coordinates: {
         lat: { type: Number, required: true },
         lng: { type: Number, required: true }
+    },
+    status: {
+        type: String,
+        enum: ['detected', 'acknowledged', 'responding', 'resolved'],
+        default: 'detected'
     },
     alertSent: {
         type: Boolean,
@@ -41,5 +46,7 @@ const accidentSchema = new mongoose.Schema({
 accidentSchema.index({ createdAt: -1 });
 // Index for camera-based filtering
 accidentSchema.index({ camId: 1, createdAt: -1 });
+// Index for status-based filtering
+accidentSchema.index({ status: 1, createdAt: -1 });
 
 module.exports = mongoose.model('Accident', accidentSchema);
