@@ -29,10 +29,12 @@ const upload = multer({
     limits: { fileSize: 10 * 1024 * 1024 } // 10MB max
 });
 
+const apiKeyAuth = require('../middleware/apiKeyAuth');
+
 // @route   POST /api/upload
 // @desc    Upload an accident frame
-// @access  Public (for AI Service)
-router.post('/', upload.single('frame'), (req, res) => {
+// @access  Protected (for AI Service)
+router.post('/', apiKeyAuth, upload.single('frame'), (req, res) => {
     if (!req.file) {
         return res.status(400).json({ error: 'No image uploaded' });
     }
