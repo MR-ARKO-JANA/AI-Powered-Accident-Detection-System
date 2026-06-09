@@ -1,15 +1,55 @@
-import React, { useState } from 'react';
+import React, { useState, useEffect, useContext } from 'react';
+import { AuthContext } from '../context/AuthContext';
+import API from '../services/api';
 
 const AccidentCard = ({ data, index = 0 }) => {
+    const { user } = useContext(AuthContext);
     const [isHovered, setIsHovered] = useState(false);
+    const [status, setStatus] = useState(data.status || 'detected');
+    const [isUpdating, setIsUpdating] = useState(false);
 
-    const isHighSeverity = data.severity === 'High';
+    // Keep status state synced with socket updates from parent
+    useEffect(() => {
+        setStatus(data.status || 'detected');
+    }, [data.status]);
+
+    const isHighSeverity = data.severity === 'High' || data.severity === 'Critical';
 
     const accentColor = isHighSeverity ? 'var(--accent-rose)' : 'var(--accent-amber)';
     const glowColor = isHighSeverity ? 'var(--accent-rose-glow)' : 'var(--accent-amber-glow)';
     const bgAccent = isHighSeverity
         ? 'rgba(244, 63, 94, 0.06)'
         : 'rgba(245, 158, 11, 0.06)';
+
+    const handleStatusChange = async (e) => {
+        const newStatus = e.target.value;
+        try {
+            setIsUpdating(true);
+            const res = await API.patch(`/accidents/${data._id || data.id}/status`, { status: newStatus });
+            if (res.data?.success) {
+                setStatus(newStatus);
+            }
+        } catch (err) {
+            console.error("Failed to update status:", err);
+            alert("Error updating status: " + (err.response?.data?.message || err.message));
+        } finally {
+            setIsUpdating(false);
+        }
+    };
+
+    const getStatusColor = (s) => {
+        if (s === 'resolved') return '#10b981'; // Emerald
+        if (s === 'responding') return '#3b82f6'; // Blue
+        if (s === 'acknowledged') return '#f59e0b'; // Amber
+        return '#f43f5e'; // Rose/Red (detected)
+    };
+
+    const getStatusBg = (s) => {
+        if (s === 'resolved') return 'rgba(16, 185, 129, 0.12)';
+        if (s === 'responding') return 'rgba(59, 130, 246, 0.12)';
+        if (s === 'acknowledged') return 'rgba(245, 158, 11, 0.12)';
+        return 'rgba(244, 63, 94, 0.12)';
+    };
 
     return (
         <div
@@ -56,15 +96,35 @@ const AccidentCard = ({ data, index = 0 }) => {
                         <span style={styles.alertType}>Collision Detected</span>
                     </div>
 
-                    {/* Severity Badge */}
-                    <div style={{
-                        ...styles.badge,
-                        background: bgAccent,
-                        color: accentColor,
-                        border: `1px solid ${isHovered ? accentColor : 'transparent'}`,
-                        animation: isHighSeverity ? 'pulse 2s ease-in-out infinite' : 'none',
-                    }}>
-                        {isHighSeverity ? 'CRITICAL' : 'MINOR'}
+                    {/* Status Badge / Selector */}
+                    <div style={styles.badgeWrapper}>
+                        {user?.isAuthenticated ? (
+                            <select
+                                value={status}
+                                onChange={handleStatusChange}
+                                disabled={isUpdating}
+                                style={{
+                                    ...styles.statusSelect,
+                                    color: getStatusColor(status),
+                                    backgroundColor: getStatusBg(status),
+                                    border: `1px solid ${getStatusColor(status)}`
+                                }}
+                            >
+                                <option value="detected">Detected</option>
+                                <option value="acknowledged">Acknowledged</option>
+                                <option value="responding">Responding</option>
+                                <option value="resolved">Resolved</option>
+                            </select>
+                        ) : (
+                            <div style={{
+                                ...styles.statusBadge,
+                                color: getStatusColor(status),
+                                backgroundColor: getStatusBg(status),
+                                border: `1px solid ${getStatusColor(status)}`
+                            }}>
+                                {status}
+                            </div>
+                        )}
                     </div>
                 </div>
 
@@ -83,7 +143,7 @@ const AccidentCard = ({ data, index = 0 }) => {
                     <div style={styles.detailItem}>
                         <span style={styles.detailIcon}>◷</span>
                         <span style={styles.detailLabel}>Time</span>
-                        <span style={styles.detailValue}>{data.time}</span>
+                        <span style={styles.detailValue}>{data.time ? new Date(data.time).toLocaleTimeString('en-US', {hour: '2-digit', minute:'2-digit'}) : 'N/A'}</span>
                     </div>
                     <div style={styles.detailItem}>
                         <span style={styles.detailIcon}>🆔</span>
@@ -161,13 +221,30 @@ const styles = {
         fontWeight: 500,
     },
 
-    badge: {
-        fontSize: '10px',
+    badgeWrapper: {
+        display: 'flex',
+        alignItems: 'center',
+    },
+
+    statusSelect: {
+        fontSize: '11px',
         fontWeight: 700,
-        letterSpacing: '1px',
+        letterSpacing: '0.5px',
         padding: '4px 10px',
         borderRadius: 'var(--radius-full)',
-        transition: 'all 0.3s ease',
+        outline: 'none',
+        cursor: 'pointer',
+        fontFamily: "'Inter', sans-serif",
+        transition: 'all 0.2s',
+    },
+
+    statusBadge: {
+        fontSize: '10px',
+        fontWeight: 700,
+        letterSpacing: '0.5px',
+        padding: '4px 10px',
+        borderRadius: 'var(--radius-full)',
+        textTransform: 'uppercase',
     },
 
     details: {
