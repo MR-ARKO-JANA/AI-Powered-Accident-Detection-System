@@ -1,41 +1,74 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useContext } from 'react';
 import CameraFeed from '../components/CameraFeed';
 import AccidentCard from '../components/AccidentCard';
 import API from '../services/api';
-import io from 'socket.io-client';
+import { NotificationContext } from '../context/NotificationContext';
 
 const Dashboard = () => {
+    const { socket } = useContext(NotificationContext);
     const [hoveredStat, setHoveredStat] = useState(null);
     const [alerts, setAlerts] = useState([]);
     const [sosAlerts, setSosAlerts] = useState([]);
     const [isLoading, setIsLoading] = useState(true);
+    const [dashStats, setDashStats] = useState(null);
 
-    // Socket.io Connection
+    // Socket.io Connection (using shared socket)
     useEffect(() => {
-        const socket = io(process.env.REACT_APP_API_URL || 'http://localhost:5000');
+        if (!socket) return;
 
-        socket.on('connect', () => {
-            console.log("🟢 Connected to APADS Real-time Engine");
-        });
-
-        socket.on('accidentDetected', (newAccident) => {
+        const handleAccident = (newAccident) => {
             console.log("🚨 REAL-TIME ALERT RECEIVED:", newAccident);
             setAlerts(prev => [newAccident, ...prev]);
-        });
+            fetchDashboardStats();
+        };
 
-        // Voice SOS real-time listener
-        socket.on('sosAlertReceived', (newSOS) => {
+        const handleSos = (newSOS) => {
             console.log("🆘 VOICE SOS ALERT RECEIVED:", newSOS);
             setSosAlerts(prev => [newSOS, ...prev]);
-        });
+            fetchDashboardStats();
+        };
 
-        socket.on('sosCancelled', ({ id }) => {
+        const handleSosCancelled = ({ id }) => {
             console.log("🚫 SOS CANCELLED:", id);
             setSosAlerts(prev => prev.map(a => a._id === id ? { ...a, cancelled: true } : a));
-        });
+        };
 
-        return () => socket.disconnect();
-    }, []);
+        const handleAccidentStatus = ({ id, status }) => {
+            setAlerts(prev => prev.map(a => a._id === id ? { ...a, status } : a));
+            fetchDashboardStats();
+        };
+
+        const handleAccidentDeleted = ({ id }) => {
+            setAlerts(prev => prev.filter(a => a._id !== id));
+            fetchDashboardStats();
+        };
+
+        socket.on('accidentDetected', handleAccident);
+        socket.on('sosAlertReceived', handleSos);
+        socket.on('sosCancelled', handleSosCancelled);
+        socket.on('accidentStatusUpdated', handleAccidentStatus);
+        socket.on('accidentDeleted', handleAccidentDeleted);
+
+        return () => {
+            socket.off('accidentDetected', handleAccident);
+            socket.off('sosAlertReceived', handleSos);
+            socket.off('sosCancelled', handleSosCancelled);
+            socket.off('accidentStatusUpdated', handleAccidentStatus);
+            socket.off('accidentDeleted', handleAccidentDeleted);
+        };
+    }, [socket]);
+
+    // Fetch dashboard stats
+    const fetchDashboardStats = async () => {
+        try {
+            const response = await API.get('/stats/dashboard');
+            if (response.data.success) {
+                setDashStats(response.data.data);
+            }
+        } catch (error) {
+            console.error("Error fetching stats:", error);
+        }
+    };
 
     // Initial fetch for historical alerts
     const fetchAlerts = async () => {
@@ -66,45 +99,46 @@ const Dashboard = () => {
     useEffect(() => {
         fetchAlerts();
         fetchSOSAlerts();
+        fetchDashboardStats();
     }, []);
 
-    // Stats data
+    // Stats data — REAL data from API
     const stats = [
         {
             id: 'alerts',
             label: 'Total Alerts',
-            value: '24',
-            trend: '+3 today',
+            value: dashStats ? dashStats.totalAlerts : '—',
+            trend: dashStats ? `+${dashStats.todayAlerts} today` : 'Loading...',
             icon: '⚡',
             color: 'var(--accent-rose)',
             glow: 'var(--accent-rose-glow)',
             bgAccent: 'rgba(244, 63, 94, 0.08)',
         },
         {
-            id: 'cameras',
-            label: 'Active Cameras',
-            value: '12',
-            trend: 'All online',
+            id: 'active',
+            label: 'Active Incidents',
+            value: dashStats ? dashStats.activeIncidents : '—',
+            trend: dashStats ? `${dashStats.totalAccidents} total` : 'Loading...',
             icon: '◎',
             color: 'var(--accent-cyan)',
             glow: 'var(--accent-cyan-glow)',
             bgAccent: 'rgba(6, 182, 212, 0.08)',
         },
         {
-            id: 'status',
-            label: 'System Status',
-            value: '99.8%',
-            trend: 'Uptime',
+            id: 'cameras',
+            label: 'Active Cameras',
+            value: dashStats ? dashStats.activeCameras : '—',
+            trend: dashStats ? (dashStats.activeCameras > 0 ? 'Reporting' : 'No data') : 'Loading...',
             icon: '⬢',
             color: 'var(--accent-emerald)',
             glow: 'var(--accent-emerald-glow)',
             bgAccent: 'rgba(16, 185, 129, 0.08)',
         },
         {
-            id: 'response',
-            label: 'Avg Response',
-            value: '2.4s',
-            trend: '-0.3s faster',
+            id: 'sos',
+            label: 'Voice SOS',
+            value: dashStats ? dashStats.totalSOS : '—',
+            trend: dashStats ? `+${dashStats.todaySOS} today` : 'Loading...',
             icon: '◈',
             color: 'var(--accent-violet)',
             glow: 'var(--accent-violet-glow)',
@@ -516,6 +550,13 @@ const styles = {
         height: '10px',
         borderRadius: '50%',
         animation: 'pulse 2s infinite',
+    },
+
+    emptyText: {
+        color: 'var(--text-muted)',
+        textAlign: 'center',
+        padding: '20px',
+        fontSize: '14px',
     },
 };
 

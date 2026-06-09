@@ -1,6 +1,7 @@
-import React, { useState } from 'react';
-import { MapContainer, TileLayer, Marker, Popup } from 'react-leaflet';
+import React, { useState, useEffect } from 'react';
+import { MapContainer, TileLayer, Marker, Popup, CircleMarker } from 'react-leaflet';
 import L from 'leaflet';
+import API from '../services/api';
 
 delete L.Icon.Default.prototype._getIconUrl;
 L.Icon.Default.mergeOptions({
@@ -11,42 +12,72 @@ L.Icon.Default.mergeOptions({
 
 const Reports = () => {
     const [hoveredStat, setHoveredStat] = useState(null);
+    const [accidents, setAccidents] = useState([]);
+    const [sosAlerts, setSosAlerts] = useState([]);
+    const [isLoading, setIsLoading] = useState(true);
 
-    // Center map on Kolkata
+    // Center map on Kolkata (default)
     const mapCenter = [22.5726, 88.3639];
 
-    // Dummy data for accidents
-    const [accidents] = useState([
-        { id: 1, position: [22.5726, 88.3639], severity: 'High', location: 'Esplanade Crossing', time: '10:45 AM' },
-        { id: 2, position: [22.5830, 88.4150], severity: 'Low', location: 'Salt Lake Sector V', time: '09:12 AM' },
-    ]);
+    // Fetch real accident data
+    useEffect(() => {
+        const fetchData = async () => {
+            try {
+                const [accRes, sosRes] = await Promise.all([
+                    API.get('/accidents?limit=100'),
+                    API.get('/sos?limit=100')
+                ]);
+                if (accRes.data.success) {
+                    setAccidents(accRes.data.data);
+                }
+                if (sosRes.data.success) {
+                    setSosAlerts(sosRes.data.data.filter(s => !s.cancelled));
+                }
+            } catch (error) {
+                console.error("Error fetching map data:", error);
+            } finally {
+                setIsLoading(false);
+            }
+        };
+        fetchData();
+    }, []);
 
     const incidentStats = [
         {
             id: 'total',
             label: 'Total Incidents',
-            value: accidents.length,
+            value: accidents.length + sosAlerts.length,
             icon: '◎',
             color: 'var(--accent-cyan)',
             bgAccent: 'rgba(6, 182, 212, 0.08)',
         },
         {
             id: 'high',
-            label: 'High Severity',
-            value: accidents.filter(a => a.severity === 'High').length,
+            label: 'Critical / High',
+            value: accidents.filter(a => a.severity === 'Critical' || a.severity === 'High').length,
             icon: '⚠',
             color: 'var(--accent-rose)',
             bgAccent: 'rgba(244, 63, 94, 0.08)',
         },
         {
-            id: 'low',
-            label: 'Low Severity',
-            value: accidents.filter(a => a.severity === 'Low').length,
+            id: 'sos',
+            label: 'Voice SOS',
+            value: sosAlerts.length,
             icon: '◈',
             color: 'var(--accent-amber)',
             bgAccent: 'rgba(245, 158, 11, 0.08)',
         },
     ];
+
+    const severityColor = (severity) => {
+        switch (severity) {
+            case 'Critical': return '#ef4444';
+            case 'High': return '#f97316';
+            case 'Medium': return '#f59e0b';
+            case 'Low': return '#10b981';
+            default: return '#6b7280';
+        }
+    };
 
     return (
         <div style={styles.page}>
@@ -54,7 +85,7 @@ const Reports = () => {
             <div style={styles.header}>
                 <div>
                     <h1 style={styles.title}>Incident Mapping</h1>
-                    <p style={styles.subtitle}>Geographic visualization of detected accidents</p>
+                    <p style={styles.subtitle}>Geographic visualization of detected accidents & SOS alerts</p>
                 </div>
             </div>
 
@@ -94,48 +125,124 @@ const Reports = () => {
                     </div>
                     <div style={styles.mapLegend}>
                         <div style={styles.legendItem}>
-                            <span style={{ ...styles.legendDot, background: 'var(--accent-rose)' }}></span>
+                            <span style={{ ...styles.legendDot, background: '#ef4444' }}></span>
+                            <span style={styles.legendText}>Critical</span>
+                        </div>
+                        <div style={styles.legendItem}>
+                            <span style={{ ...styles.legendDot, background: '#f97316' }}></span>
                             <span style={styles.legendText}>High</span>
                         </div>
                         <div style={styles.legendItem}>
-                            <span style={{ ...styles.legendDot, background: 'var(--accent-amber)' }}></span>
-                            <span style={styles.legendText}>Low</span>
+                            <span style={{ ...styles.legendDot, background: '#f59e0b' }}></span>
+                            <span style={styles.legendText}>Medium/Low</span>
+                        </div>
+                        <div style={styles.legendItem}>
+                            <span style={{ ...styles.legendDot, background: '#3b82f6' }}></span>
+                            <span style={styles.legendText}>Voice SOS</span>
                         </div>
                     </div>
                 </div>
 
                 <div style={styles.mapContainer}>
-                    <MapContainer
-                        center={mapCenter}
-                        zoom={12}
-                        scrollWheelZoom={true}
-                        style={{ height: '100%', width: '100%', borderRadius: 'var(--radius-md)' }}
-                    >
-                        <TileLayer
-                            attribution='&copy; <a href="https://www.openstreetmap.org/copyright">OpenStreetMap</a>'
-                            url="https://{s}.basemaps.cartocdn.com/dark_all/{z}/{x}/{y}{r}.png"
-                        />
+                    {isLoading ? (
+                        <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'center', height: '100%', color: 'var(--text-muted)' }}>
+                            Loading map data...
+                        </div>
+                    ) : (
+                        <MapContainer
+                            center={mapCenter}
+                            zoom={12}
+                            scrollWheelZoom={true}
+                            style={{ height: '100%', width: '100%', borderRadius: 'var(--radius-md)' }}
+                        >
+                            <TileLayer
+                                attribution='&copy; <a href="https://www.openstreetmap.org/copyright">OpenStreetMap</a>'
+                                url="https://{s}.basemaps.cartocdn.com/dark_all/{z}/{x}/{y}{r}.png"
+                            />
 
-                        {accidents.map((accident) => (
-                            <Marker key={accident.id} position={accident.position}>
-                                <Popup>
-                                    <div style={{ fontFamily: "'Inter', sans-serif", padding: '4px' }}>
-                                        <strong style={{ color: accident.severity === 'High' ? '#ef4444' : '#f59e0b' }}>
-                                            {accident.severity} Severity
-                                        </strong>
-                                        <br />
-                                        <span style={{ fontSize: '13px', color: '#374151' }}>
-                                            📍 {accident.location}
-                                        </span>
-                                        <br />
-                                        <span style={{ fontSize: '12px', color: '#6b7280' }}>
-                                            🕐 {accident.time}
-                                        </span>
-                                    </div>
-                                </Popup>
-                            </Marker>
-                        ))}
-                    </MapContainer>
+                            {/* Real accident markers */}
+                            {accidents.map((accident) => (
+                                accident.coordinates && (
+                                    <CircleMarker
+                                        key={accident._id}
+                                        center={[accident.coordinates.lat, accident.coordinates.lng]}
+                                        radius={accident.severity === 'Critical' ? 12 : accident.severity === 'High' ? 10 : 7}
+                                        fillColor={severityColor(accident.severity)}
+                                        fillOpacity={0.7}
+                                        color={severityColor(accident.severity)}
+                                        weight={2}
+                                    >
+                                        <Popup>
+                                            <div style={{ fontFamily: "'Inter', sans-serif", padding: '4px', minWidth: '180px' }}>
+                                                <strong style={{ color: severityColor(accident.severity), fontSize: '14px' }}>
+                                                    {accident.severity} Severity
+                                                </strong>
+                                                <br />
+                                                <span style={{ fontSize: '13px', color: '#374151' }}>
+                                                    📍 {accident.location}
+                                                </span>
+                                                <br />
+                                                <span style={{ fontSize: '12px', color: '#6b7280' }}>
+                                                    🕐 {new Date(accident.time || accident.createdAt).toLocaleString()}
+                                                </span>
+                                                <br />
+                                                <span style={{ fontSize: '11px', color: '#9ca3af' }}>
+                                                    🎥 {accident.camId} • Status: {accident.status || 'detected'}
+                                                </span>
+                                                {accident.licensePlate && accident.licensePlate !== 'Unknown' && (
+                                                    <>
+                                                        <br />
+                                                        <span style={{ fontSize: '11px', color: '#9ca3af' }}>
+                                                            🚗 Plate: {accident.licensePlate}
+                                                        </span>
+                                                    </>
+                                                )}
+                                            </div>
+                                        </Popup>
+                                    </CircleMarker>
+                                )
+                            ))}
+
+                            {/* SOS alert markers (blue) */}
+                            {sosAlerts.map((sos) => (
+                                sos.coordinates && (
+                                    <CircleMarker
+                                        key={sos._id}
+                                        center={[sos.coordinates.lat, sos.coordinates.lng]}
+                                        radius={sos.severity === 'Critical' ? 12 : 9}
+                                        fillColor="#3b82f6"
+                                        fillOpacity={0.7}
+                                        color="#3b82f6"
+                                        weight={2}
+                                    >
+                                        <Popup>
+                                            <div style={{ fontFamily: "'Inter', sans-serif", padding: '4px', minWidth: '180px' }}>
+                                                <strong style={{ color: '#3b82f6', fontSize: '14px' }}>
+                                                    🆘 Voice SOS — {sos.domain}
+                                                </strong>
+                                                <br />
+                                                <span style={{ fontSize: '13px', color: '#374151' }}>
+                                                    Severity: {sos.severity} ({(sos.confidence * 100).toFixed(0)}%)
+                                                </span>
+                                                {sos.transcript && (
+                                                    <>
+                                                        <br />
+                                                        <span style={{ fontSize: '12px', color: '#6b7280', fontStyle: 'italic' }}>
+                                                            "{sos.transcript}"
+                                                        </span>
+                                                    </>
+                                                )}
+                                                <br />
+                                                <span style={{ fontSize: '12px', color: '#6b7280' }}>
+                                                    🕐 {new Date(sos.createdAt).toLocaleString()}
+                                                </span>
+                                            </div>
+                                        </Popup>
+                                    </CircleMarker>
+                                )
+                            ))}
+                        </MapContainer>
+                    )}
                 </div>
             </div>
         </div>
