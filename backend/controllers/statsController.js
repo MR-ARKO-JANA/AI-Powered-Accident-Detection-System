@@ -1,8 +1,14 @@
-const Accident = require("../models/Accident");
-const SosAlert = require("../models/SosAlert");
+const Accident = require('../models/Accident');
+const SosAlert = require('../models/SosAlert');
+const AlertLog = require('../models/AlertLog');
+const Camera = require('../models/Camera');
+const Feedback = require('../models/Feedback');
 
-// @desc    Get dashboard summary stats
-// @route   GET /api/stats/dashboard
+/**
+ * @desc    Get dashboard summary stats
+ * @route   GET /api/stats/dashboard
+ * @access  Authenticated
+ */
 const getDashboardStats = async (req, res) => {
     try {
         const now = new Date();
@@ -15,27 +21,48 @@ const getDashboardStats = async (req, res) => {
             todaySOS,
             activeAccidents,
             severityBreakdown,
-            recentAccident
+            statusBreakdown,
+            recentAccident,
+            totalCameras,
+            onlineCameras,
+            totalAlertsSent,
+            failedAlerts,
+            falsePosCount
         ] = await Promise.all([
             Accident.countDocuments(),
             SosAlert.countDocuments({ cancelled: false }),
-            Accident.countDocuments({ createdAt: { $gte: todayStart } }),
+            Accident.countDocuments({ detectedAt: { $gte: todayStart } }),
             SosAlert.countDocuments({ createdAt: { $gte: todayStart }, cancelled: false }),
-            Accident.countDocuments({ status: { $ne: 'resolved' } }),
+            Accident.countDocuments({ status: { $nin: ['resolved', 'false_positive'] } }),
             Accident.aggregate([
-                { $group: { _id: "$severity", count: { $sum: 1 } } }
+                { $group: { _id: '$severity', count: { $sum: 1 } } }
             ]),
-            Accident.findOne().sort({ createdAt: -1 }).select('createdAt')
+            Accident.aggregate([
+                { $group: { _id: '$status', count: { $sum: 1 } } }
+            ]),
+            Accident.findOne().sort({ detectedAt: -1 }).select('detectedAt'),
+            Camera.countDocuments(),
+            Camera.countDocuments({ status: 'online' }),
+            AlertLog.countDocuments({ status: { $in: ['sent', 'delivered'] } }),
+            AlertLog.countDocuments({ status: 'failed' }),
+            Feedback.countDocuments({ label: 'false_positive' })
         ]);
 
-        // Unique camera IDs that have reported
-        const activeCameras = await Accident.distinct('camId');
-
         // Build severity map
-        const severity = { Critical: 0, High: 0, Medium: 0, Low: 0 };
+        const severity = { minor: 0, moderate: 0, severe: 0 };
         severityBreakdown.forEach(s => {
             if (severity.hasOwnProperty(s._id)) severity[s._id] = s.count;
         });
+
+        // Build status map
+        const status = { needs_review: 0, confirmed: 0, false_positive: 0, resolved: 0 };
+        statusBreakdown.forEach(s => {
+            if (status.hasOwnProperty(s._id)) status[s._id] = s.count;
+        });
+
+        // Calculate false positive rate
+        const totalDetections = totalAccidents || 1;
+        const falsePositiveRate = ((falsePosCount / totalDetections) * 100).toFixed(1);
 
         res.json({
             success: true,
@@ -47,10 +74,18 @@ const getDashboardStats = async (req, res) => {
                 todayAccidents,
                 todaySOS,
                 activeIncidents: activeAccidents,
-                activeCameras: activeCameras.length,
-                cameraIds: activeCameras,
+                cameras: {
+                    total: totalCameras,
+                    online: onlineCameras
+                },
+                alerts: {
+                    sent: totalAlertsSent,
+                    failed: failedAlerts
+                },
                 severity,
-                lastAlertTime: recentAccident?.createdAt || null
+                status,
+                falsePositiveRate: parseFloat(falsePositiveRate),
+                lastAlertTime: recentAccident?.detectedAt || null
             }
         });
     } catch (error) {
@@ -58,63 +93,83 @@ const getDashboardStats = async (req, res) => {
     }
 };
 
-// @desc    Get analytics data (charts: daily trend, hourly distribution, severity pie)
-// @route   GET /api/stats/analytics
+/**
+ * @desc    Get analytics data for charts
+ * @route   GET /api/stats/analytics
+ * @access  Authenticated
+ */
 const getAnalytics = async (req, res) => {
     try {
         const days = Math.min(90, Math.max(7, parseInt(req.query.days) || 30));
         const startDate = new Date();
         startDate.setDate(startDate.getDate() - days);
 
-        // Accidents per day (last N days)
-        const dailyAccidents = await Accident.aggregate([
-            { $match: { createdAt: { $gte: startDate } } },
-            {
-                $group: {
-                    _id: { $dateToString: { format: "%Y-%m-%d", date: "$createdAt" } },
+        const [
+            dailyAccidents,
+            dailySOS,
+            hourlyDistribution,
+            severityDistribution,
+            statusDistribution,
+            cameraStats,
+            avgResponseTime,
+            feedbackStats
+        ] = await Promise.all([
+            // Accidents per day
+            Accident.aggregate([
+                { $match: { detectedAt: { $gte: startDate } } },
+                { $group: {
+                    _id: { $dateToString: { format: '%Y-%m-%d', date: '$detectedAt' } },
                     count: { $sum: 1 }
-                }
-            },
-            { $sort: { _id: 1 } }
-        ]);
-
-        // SOS per day (last N days)
-        const dailySOS = await SosAlert.aggregate([
-            { $match: { createdAt: { $gte: startDate }, cancelled: false } },
-            {
-                $group: {
-                    _id: { $dateToString: { format: "%Y-%m-%d", date: "$createdAt" } },
+                }},
+                { $sort: { _id: 1 } }
+            ]),
+            // SOS per day
+            SosAlert.aggregate([
+                { $match: { createdAt: { $gte: startDate }, cancelled: false } },
+                { $group: {
+                    _id: { $dateToString: { format: '%Y-%m-%d', date: '$createdAt' } },
                     count: { $sum: 1 }
-                }
-            },
-            { $sort: { _id: 1 } }
-        ]);
-
-        // Peak hours distribution (0-23)
-        const hourlyDistribution = await Accident.aggregate([
-            {
-                $group: {
-                    _id: { $hour: "$createdAt" },
-                    count: { $sum: 1 }
-                }
-            },
-            { $sort: { _id: 1 } }
-        ]);
-
-        // Severity distribution
-        const severityDistribution = await Accident.aggregate([
-            { $group: { _id: "$severity", count: { $sum: 1 } } }
-        ]);
-
-        // Status distribution
-        const statusDistribution = await Accident.aggregate([
-            { $group: { _id: "$status", count: { $sum: 1 } } }
-        ]);
-
-        // Camera performance (accidents per camera)
-        const cameraStats = await Accident.aggregate([
-            { $group: { _id: "$camId", count: { $sum: 1 } } },
-            { $sort: { count: -1 } }
+                }},
+                { $sort: { _id: 1 } }
+            ]),
+            // Peak hours
+            Accident.aggregate([
+                { $group: { _id: { $hour: '$detectedAt' }, count: { $sum: 1 } } },
+                { $sort: { _id: 1 } }
+            ]),
+            // Severity
+            Accident.aggregate([
+                { $group: { _id: '$severity', count: { $sum: 1 } } }
+            ]),
+            // Status
+            Accident.aggregate([
+                { $group: { _id: '$status', count: { $sum: 1 } } }
+            ]),
+            // Camera performance
+            Accident.aggregate([
+                { $lookup: { from: 'cameras', localField: 'camera', foreignField: '_id', as: 'cam' } },
+                { $unwind: { path: '$cam', preserveNullAndEmptyArrays: true } },
+                { $group: {
+                    _id: { $ifNull: ['$cam.name', '$camId'] },
+                    count: { $sum: 1 },
+                    zone: { $first: '$cam.zone' }
+                }},
+                { $sort: { count: -1 } }
+            ]),
+            // Average response time (detection → first alert sent)
+            AlertLog.aggregate([
+                { $match: { status: { $in: ['sent', 'delivered'] } } },
+                { $lookup: { from: 'accidents', localField: 'accident', foreignField: '_id', as: 'acc' } },
+                { $unwind: '$acc' },
+                { $project: {
+                    responseTime: { $subtract: ['$sentAt', '$acc.detectedAt'] }
+                }},
+                { $group: { _id: null, avgMs: { $avg: '$responseTime' } } }
+            ]),
+            // Feedback stats
+            Feedback.aggregate([
+                { $group: { _id: '$label', count: { $sum: 1 } } }
+            ])
         ]);
 
         res.json({
@@ -126,7 +181,9 @@ const getAnalytics = async (req, res) => {
                 hourlyDistribution,
                 severityDistribution,
                 statusDistribution,
-                cameraStats
+                cameraStats,
+                avgAlertLatencyMs: avgResponseTime[0]?.avgMs || null,
+                feedbackStats
             }
         });
     } catch (error) {
@@ -134,4 +191,29 @@ const getAnalytics = async (req, res) => {
     }
 };
 
-module.exports = { getDashboardStats, getAnalytics };
+/**
+ * @desc    Get user management data
+ * @route   GET /api/stats/users
+ * @access  Admin
+ */
+const getUserStats = async (req, res) => {
+    try {
+        const User = require('../models/User');
+
+        const [users, roleBreakdown] = await Promise.all([
+            User.find().select('-passwordHash').sort({ createdAt: -1 }),
+            User.aggregate([
+                { $group: { _id: '$role', count: { $sum: 1 } } }
+            ])
+        ]);
+
+        res.json({
+            success: true,
+            data: { users, roleBreakdown }
+        });
+    } catch (error) {
+        res.status(500).json({ success: false, message: error.message });
+    }
+};
+
+module.exports = { getDashboardStats, getAnalytics, getUserStats };
