@@ -1,12 +1,10 @@
-const express = require("express");
+const express = require('express');
 const router = express.Router();
-const { getDashboardStats, getAnalytics } = require("../controllers/statsController");
-const { protect } = require("../middleware/authMiddleware");
+const { getDashboardStats, getAnalytics, getUserStats } = require('../controllers/statsController');
+const { protect, adminOnly } = require('../middleware/authMiddleware');
 
-// GET /api/stats/dashboard — Summary stats for the dashboard cards
-router.get("/dashboard", protect, getDashboardStats);
-
-// GET /api/stats/analytics — Detailed analytics for charts (optional ?days=30)
-router.get("/analytics", protect, getAnalytics);
+router.get('/dashboard', protect, getDashboardStats);
+router.get('/analytics', protect, getAnalytics);
+router.get('/users', protect, adminOnly, getUserStats);
 
 module.exports = router;
