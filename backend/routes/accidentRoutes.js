@@ -1,22 +1,26 @@
-const express = require("express");
+const express = require('express');
 const router = express.Router();
-const { createAccident, getAccidents, getAccidentById, updateAccidentStatus, deleteAccident } = require("../controllers/accidentController");
-const { protect, adminOnly } = require("../middleware/authMiddleware");
-const apiKeyAuth = require("../middleware/apiKeyAuth");
+const { createAccident, getAccidents, getAccidentById, updateAccidentStatus, addFeedback, deleteAccident } = require('../controllers/accidentController');
+const { protect, requireRole, adminOnly } = require('../middleware/authMiddleware');
+const { audit } = require('../middleware/auditMiddleware');
+const apiKeyAuth = require('../middleware/apiKeyAuth');
 
-// Route to create a new accident record (AI service requires API key auth)
-router.post("/", apiKeyAuth, createAccident);
+// AI Service creates accident records (API key auth)
+router.post('/', apiKeyAuth, createAccident);
 
-// Route to get all accident records (requires authentication)
-router.get("/", protect, getAccidents);
+// Authenticated routes
+router.get('/', protect, getAccidents);
+router.get('/:id', protect, getAccidentById);
 
-// Route to get a single accident by ID (requires authentication)
-router.get("/:id", protect, getAccidentById);
+// Status updates (responder+)
+router.patch('/:id/status', protect, requireRole('super_admin', 'zone_admin', 'responder'),
+    audit('ACCIDENT_STATUS_CHANGED', 'Accident'), updateAccidentStatus);
 
-// Route to update accident status (requires authentication)
-router.patch("/:id/status", protect, updateAccidentStatus);
+// Feedback for retraining (responder+)
+router.patch('/:id/feedback', protect, requireRole('super_admin', 'zone_admin', 'responder'),
+    audit('ACCIDENT_FEEDBACK_ADDED', 'Accident'), addFeedback);
 
-// Route to delete an accident (admin only)
-router.delete("/:id", protect, adminOnly, deleteAccident);
+// Delete (admin only)
+router.delete('/:id', protect, adminOnly, audit('ACCIDENT_DELETED', 'Accident'), deleteAccident);
 
 module.exports = router;
