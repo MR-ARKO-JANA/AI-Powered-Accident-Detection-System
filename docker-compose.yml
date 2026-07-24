@@ -8,14 +8,21 @@ services:
       - "5000:5000"
     env_file:
       - ./backend/.env
+    environment:
+      - NODE_ENV=production
+      - MONGO_URI=mongodb://mongodb:27017/apads
+      - AI_SERVICE_URL=http://ai-service:5001
+      - PORT=5000
     depends_on:
       mongodb:
-        condition: service_started
+        condition: service_healthy
     restart: unless-stopped
+    volumes:
+      - backend_uploads:/app/uploads
     healthcheck:
-      test: ["CMD", "node", "-e", "require('http').get('http://localhost:5000/api/status', (r) => process.exit(r.statusCode === 200 ? 0 : 1))"]
+      test: ["CMD", "node", "-e", "require('http').get('http://localhost:5000/health', (r) => process.exit(r.statusCode === 200 ? 0 : 1))"]
       interval: 30s
-      timeout: 5s
+      timeout: 10s
       retries: 3
 
   # Python AI Service
@@ -23,19 +30,38 @@ services:
     build: ./ai-service
     ports:
       - "5001:5001"
+    environment:
+      - BACKEND_URL=http://backend:5000/api/accidents
+      - UPLOAD_URL=http://backend:5000/api/upload
+      - WEBSOCKET_URL=http://backend:5000
+      - REDIS_BROKER_URL=redis://redis:6379/0
+      - USE_CELERY=True
     restart: unless-stopped
     volumes:
       - ./ai-service/model:/app/model
+    healthcheck:
+      test: ["CMD", "python", "-c", "import urllib.request; urllib.request.urlopen('http://localhost:5001/health')"]
+      interval: 30s
+      timeout: 10s
+      retries: 3
 
   # React Frontend
   frontend:
     build: ./frontend/my-app
     ports:
       - "3000:3000"
-    stdin_open: true
-    restart: unless-stopped
     environment:
-      - CHOKIDAR_USEPOLLING=true
+      - REACT_APP_API_URL=http://localhost:5000/api
+      - REACT_APP_WS_URL=http://localhost:5000
+    restart: unless-stopped
+    depends_on:
+      backend:
+        condition: service_healthy
+    healthcheck:
+      test: ["CMD", "node", "-e", "require('http').get('http://localhost:3000', (r) => process.exit(r.statusCode === 200 || r.statusCode === 404 ? 0 : 1))"]
+      interval: 30s
+      timeout: 10s
+      retries: 3
 
   # MongoDB
   mongodb:
@@ -45,6 +71,11 @@ services:
     restart: unless-stopped
     volumes:
       - mongo_data:/data/db
+    healthcheck:
+      test: echo 'db.runCommand("ping").ok' | mongosh localhost:27017/test --quiet
+      interval: 30s
+      timeout: 10s
+      retries: 3
 
   # Redis Message Broker
   redis:
@@ -52,17 +83,31 @@ services:
     ports:
       - "6379:6379"
     restart: unless-stopped
+    healthcheck:
+      test: ["CMD", "redis-cli", "ping"]
+      interval: 30s
+      timeout: 10s
+      retries: 3
 
   # Celery Background Worker
   celery-worker:
     build: ./ai-service
     command: celery -A tasks.celery worker --loglevel=info
+    environment:
+      - BACKEND_URL=http://backend:5000/api/accidents
+      - UPLOAD_URL=http://backend:5000/api/upload
+      - WEBSOCKET_URL=http://backend:5000
+      - REDIS_BROKER_URL=redis://redis:6379/0
+      - USE_CELERY=True
     restart: unless-stopped
     volumes:
       - ./ai-service/model:/app/model
     depends_on:
-      - redis
-      - backend
+      redis:
+        condition: service_healthy
+      backend:
+        condition: service_healthy
 
 volumes:
   mongo_data:
+  backend_uploads:
