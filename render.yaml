@@ -1,0 +1,64 @@
+services:
+  # ----------------------------------------------------
+  # 1. AI Service (Python / Flask)
+  # ----------------------------------------------------
+  - type: web
+    name: apads-ai-service
+    env: docker
+    region: ohio
+    plan: starter # ML models often need more RAM than the free tier provides
+    rootDir: ai-service
+    dockerfilePath: ./Dockerfile
+    envVars:
+      - key: USE_CELERY
+        value: "False"
+      - key: BACKEND_URL
+        fromService:
+          type: web
+          name: apads-backend
+          envVarKey: RENDER_EXTERNAL_URL
+        # Note: We append /api/accidents in code or configure it later
+      - key: PORT
+        value: "5001"
+
+  # ----------------------------------------------------
+  # 2. Node.js Backend (Express)
+  # ----------------------------------------------------
+  - type: web
+    name: apads-backend
+    env: node
+    region: ohio
+    plan: free
+    rootDir: backend
+    buildCommand: npm install
+    startCommand: npm start
+    envVars:
+      - key: NODE_ENV
+        value: production
+      - key: AI_SERVICE_URL
+        fromService:
+          type: web
+          name: apads-ai-service
+          envVarKey: RENDER_EXTERNAL_URL
+      - key: MONGO_URI
+        sync: false # You must set your MongoDB Atlas URI in the Render Dashboard
+      - key: JWT_SECRET
+        generateValue: true # Render will generate a secure random string automatically
+      - key: PORT
+        value: "5000"
+
+  # ----------------------------------------------------
+  # 3. React Frontend Dashboard
+  # ----------------------------------------------------
+  - type: web
+    name: apads-frontend
+    env: static
+    region: ohio
+    rootDir: frontend/my-app
+    buildCommand: npm install && npm run build
+    staticPublishPath: ./build
+    envVars:
+      - key: REACT_APP_API_URL
+        value: "https://apads-backend.onrender.com/api"
+      - key: REACT_APP_WS_URL
+        value: "https://apads-backend.onrender.com"
