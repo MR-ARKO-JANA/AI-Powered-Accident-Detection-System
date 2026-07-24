@@ -13,6 +13,7 @@ RUN apt-get update && apt-get install -y \
 # Copy requirements and install
 COPY requirements.txt .
 RUN pip install --no-cache-dir -r requirements.txt
+RUN pip install --no-cache-dir gunicorn
 
 # Copy the rest of the code
 COPY . .
@@ -20,5 +21,5 @@ COPY . .
 # Expose port 5001
 EXPOSE 5001
 
-# Command to run the application
-CMD ["python", "app.py"]
+# Command to run the application with Gunicorn for production
+CMD ["gunicorn", "--bind", "0.0.0.0:5001", "--workers", "1", "--threads", "4", "--timeout", "120", "app:app"]
