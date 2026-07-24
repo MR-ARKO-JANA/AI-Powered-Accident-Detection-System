@@ -1,185 +1,205 @@
-import React, { createContext, useState, useEffect, useContext } from 'react';
-import io from 'socket.io-client';
-import { AuthContext } from './AuthContext';
+import React, { createContext, useState, useContext, useEffect, useCallback, useRef } from 'react';
+import { io } from 'socket.io-client';
+import { useAuth } from './AuthContext';
 
-export const NotificationContext = createContext();
+const NotificationContext = createContext(null);
+
+const WS_URL = process.env.REACT_APP_WS_URL || 'http://localhost:5000';
 
 export const NotificationProvider = ({ children }) => {
-    const { user } = useContext(AuthContext);
-    const [socket, setSocket] = useState(null);
+    const { isAuthenticated } = useAuth();
     const [notifications, setNotifications] = useState([]);
-    const [unreadCount, setUnreadCount] = useState(0);
+    const [connected, setConnected] = useState(false);
+    const [latestAccident, setLatestAccident] = useState(null);
+    const socketRef = useRef(null);
+    const audioRef = useRef(null);
+    const [soundEnabled, setSoundEnabled] = useState(() => {
+        return localStorage.getItem('apads_sound') !== 'false';
+    });
 
-    // Initialize socket connection when user is logged in
+    // Initialize audio
     useEffect(() => {
-        if (!user || !user.isAuthenticated) {
-            if (socket) {
-                socket.disconnect();
-                setSocket(null);
+        // Create a simple alert sound using Web Audio API
+        audioRef.current = {
+            play: () => {
+                if (!soundEnabled) return;
+                try {
+                    const ctx = new (window.AudioContext || window.webkitAudioContext)();
+                    const osc = ctx.createOscillator();
+                    const gain = ctx.createGain();
+                    osc.connect(gain);
+                    gain.connect(ctx.destination);
+                    osc.frequency.setValueAtTime(880, ctx.currentTime);
+                    osc.frequency.setValueAtTime(660, ctx.currentTime + 0.1);
+                    osc.frequency.setValueAtTime(880, ctx.currentTime + 0.2);
+                    gain.gain.setValueAtTime(0.3, ctx.currentTime);
+                    gain.gain.exponentialRampToValueAtTime(0.01, ctx.currentTime + 0.4);
+                    osc.start(ctx.currentTime);
+                    osc.stop(ctx.currentTime + 0.4);
+                } catch (e) {
+                    // Audio API not available — silent
+                }
+            }
+        };
+    }, [soundEnabled]);
+
+    const addNotification = useCallback((notification) => {
+        const id = Date.now() + Math.random();
+        const newNotif = { id, timestamp: new Date(), ...notification };
+        setNotifications(prev => [newNotif, ...prev].slice(0, 50));
+
+        // Auto-dismiss after 8 seconds
+        setTimeout(() => {
+            setNotifications(prev => prev.filter(n => n.id !== id));
+        }, 8000);
+
+        return id;
+    }, []);
+
+    const dismissNotification = useCallback((id) => {
+        setNotifications(prev => prev.filter(n => n.id !== id));
+    }, []);
+
+    const clearAll = useCallback(() => {
+        setNotifications([]);
+    }, []);
+
+    // Socket.IO connection
+    useEffect(() => {
+        if (!isAuthenticated) {
+            if (socketRef.current) {
+                socketRef.current.disconnect();
+                socketRef.current = null;
+                setConnected(false);
             }
             return;
         }
 
-        const socketUrl = process.env.REACT_APP_API_URL || undefined;
-        const newSocket = io(socketUrl);
-        setSocket(newSocket);
-
-        newSocket.on('connect', () => {
-            console.log('📡 Connected to APADS shared WebSocket');
+        const socket = io(WS_URL, {
+            transports: ['websocket', 'polling'],
+            reconnectionAttempts: 10,
+            reconnectionDelay: 2000
         });
 
-        // Request browser push notification permission
-        if ('Notification' in window && Notification.permission === 'default') {
-            Notification.requestPermission();
-        }
+        socketRef.current = socket;
 
-        return () => {
-            newSocket.disconnect();
-        };
-    }, [user]);
+        socket.on('connect', () => {
+            console.log('🔌 WebSocket connected');
+            setConnected(true);
+        });
 
-    // Handle WebSocket events
-    useEffect(() => {
-        if (!socket) return;
+        socket.on('disconnect', () => {
+            console.log('❌ WebSocket disconnected');
+            setConnected(false);
+        });
 
-        const showPushNotification = (title, body, iconUrl) => {
-            if ('Notification' in window && Notification.permission === 'granted') {
-                new Notification(title, {
-                    body,
-                    icon: iconUrl || '/logo192.png'
-                });
-            }
-        };
+        // ── Live accident events ──
+        socket.on('accident:new', (accident) => {
+            console.log('🚨 New accident detected:', accident);
+            setLatestAccident(accident);
 
-        const playAlertSound = () => {
-            try {
-                const audioCtx = new (window.AudioContext || window.webkitAudioContext)();
-                const oscillator = audioCtx.createOscillator();
-                const gainNode = audioCtx.createGain();
-
-                oscillator.type = 'sine';
-                oscillator.frequency.setValueAtTime(880, audioCtx.currentTime); // High pitch beep
-                gainNode.gain.setValueAtTime(0.08, audioCtx.currentTime);
-                gainNode.gain.exponentialRampToValueAtTime(0.01, audioCtx.currentTime + 0.3);
-
-                oscillator.connect(gainNode);
-                gainNode.connect(audioCtx.destination);
-                oscillator.start();
-                oscillator.stop(audioCtx.currentTime + 0.3);
-            } catch (e) {
-                console.error('Audio beep failed:', e);
-            }
-        };
-
-        // Real-time accident alert listener
-        const handleAccident = (newAccident) => {
-            const notif = {
-                id: `accident-${newAccident._id || Date.now()}`,
-                type: 'accident',
-                title: `🚨 Accident: ${newAccident.severity} severity`,
-                message: `Location: ${newAccident.location} | Cam: ${newAccident.camId}`,
-                time: new Date(newAccident.createdAt || Date.now()),
-                unread: true,
-                data: newAccident
-            };
-
-            setNotifications(prev => [notif, ...prev.slice(0, 19)]); // limit to recent 20
-            setUnreadCount(prev => prev + 1);
-            playAlertSound();
-            showPushNotification(notif.title, notif.message, newAccident.mediaUrl);
-        };
-
-        // Real-time SOS alert listener
-        const handleSos = (newSOS) => {
-            const notif = {
-                id: `sos-${newSOS._id || Date.now()}`,
-                type: 'sos',
-                title: `🚑 Voice SOS Alert: ${newSOS.domain}`,
-                message: `Location: ${newSOS.location} | Conf: ${(newSOS.confidence * 100).toFixed(0)}%`,
-                time: new Date(newSOS.createdAt || Date.now()),
-                unread: true,
-                data: newSOS
-            };
-
-            setNotifications(prev => [notif, ...prev.slice(0, 19)]); // limit to recent 20
-            setUnreadCount(prev => prev + 1);
-            playAlertSound();
-            showPushNotification(notif.title, notif.message);
-        };
-
-        // Accident status updated listener
-        const handleAccidentStatus = ({ id, status }) => {
-            setNotifications(prev => prev.map(n => {
-                if (n.type === 'accident' && n.data._id === id) {
-                    return {
-                        ...n,
-                        message: `${n.message.split(' | Status:')[0]} | Status: ${status}`,
-                        data: { ...n.data, status }
-                    };
-                }
-                return n;
-            }));
-        };
-
-        // Accident deleted listener
-        const handleAccidentDeleted = ({ id }) => {
-            setNotifications(prev => {
-                const target = prev.find(n => n.type === 'accident' && n.data._id === id);
-                if (target && target.unread) {
-                    setUnreadCount(u => Math.max(0, u - 1));
-                }
-                return prev.filter(n => !(n.type === 'accident' && n.data._id === id));
+            addNotification({
+                type: 'severe',
+                title: `${accident.severity?.toUpperCase()} Accident Detected`,
+                message: `${accident.location?.address || 'Unknown location'} — Camera: ${accident.camera?.name || accident.camId || 'Unknown'}`,
+                data: accident
             });
-        };
 
-        // SOS cancelled listener
-        const handleSosCancelled = ({ id }) => {
-            setNotifications(prev => prev.map(n => {
-                if (n.type === 'sos' && n.data._id === id) {
-                    return {
-                        ...n,
-                        title: `<s>${n.title} (Cancelled)</s>`,
-                        data: { ...n.data, cancelled: true }
-                    };
-                }
-                return n;
-            }));
-        };
+            audioRef.current?.play();
+        });
 
-        socket.on('accidentDetected', handleAccident);
-        socket.on('sosAlertReceived', handleSos);
-        socket.on('accidentStatusUpdated', handleAccidentStatus);
-        socket.on('accidentDeleted', handleAccidentDeleted);
-        socket.on('sosCancelled', handleSosCancelled);
+        socket.on('accident:statusUpdated', (data) => {
+            addNotification({
+                type: 'info',
+                title: 'Accident Status Updated',
+                message: `Accident status changed to: ${data.status?.replace('_', ' ')}`
+            });
+        });
+
+        socket.on('accident:feedbackAdded', (data) => {
+            addNotification({
+                type: data.label === 'false_positive' ? 'info' : 'success',
+                title: 'Feedback Recorded',
+                message: `Accident marked as: ${data.label?.replace('_', ' ')}`
+            });
+        });
+
+        socket.on('accidentDetected', (accident) => {
+            // Legacy event name support
+            setLatestAccident(accident);
+            addNotification({
+                type: 'severe',
+                title: 'Accident Detected',
+                message: `${accident.severity} severity — ${accident.location?.address || accident.location || 'Unknown'}`,
+                data: accident
+            });
+            audioRef.current?.play();
+        });
+
+        socket.on('sos:new', (alert) => {
+            addNotification({
+                type: 'severe',
+                title: `🆘 Voice SOS: ${alert.domain}`,
+                message: `Severity: ${alert.severity} — ${alert.location || 'Unknown location'}`,
+                data: alert
+            });
+            audioRef.current?.play();
+        });
+
+        socket.on('sosAlertReceived', (alert) => {
+            // Legacy event name support
+            addNotification({
+                type: 'severe',
+                title: `🆘 SOS Alert: ${alert.domain}`,
+                message: `${alert.severity} — ${alert.location || 'Unknown'}`,
+                data: alert
+            });
+            audioRef.current?.play();
+        });
+
+        socket.on('camera:updated', (camera) => {
+            addNotification({
+                type: 'info',
+                title: 'Camera Updated',
+                message: `${camera.name} — Status: ${camera.status}`
+            });
+        });
 
         return () => {
-            socket.off('accidentDetected', handleAccident);
-            socket.off('sosAlertReceived', handleSos);
-            socket.off('accidentStatusUpdated', handleAccidentStatus);
-            socket.off('accidentDeleted', handleAccidentDeleted);
-            socket.off('sosCancelled', handleSosCancelled);
+            socket.disconnect();
+            setConnected(false);
         };
-    }, [socket]);
+    }, [isAuthenticated, addNotification]);
 
-    const markAllAsRead = () => {
-        setNotifications(prev => prev.map(n => ({ ...n, unread: false })));
-        setUnreadCount(0);
-    };
-
-    const clearNotifications = () => {
-        setNotifications([]);
-        setUnreadCount(0);
+    const toggleSound = () => {
+        setSoundEnabled(prev => {
+            const next = !prev;
+            localStorage.setItem('apads_sound', String(next));
+            return next;
+        });
     };
 
     return (
         <NotificationContext.Provider value={{
-            socket,
             notifications,
-            unreadCount,
-            markAllAsRead,
-            clearNotifications
+            connected,
+            latestAccident,
+            soundEnabled,
+            addNotification,
+            dismissNotification,
+            clearAll,
+            toggleSound,
+            socket: socketRef.current
         }}>
             {children}
         </NotificationContext.Provider>
     );
 };
+
+export const useNotifications = () => {
+    const context = useContext(NotificationContext);
+    if (!context) throw new Error('useNotifications must be used within NotificationProvider');
+    return context;
+};
+
+export default NotificationContext;
